@@ -1,0 +1,20 @@
+# Python
+backend/.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pyo
+.env
+.venv/
+venv/
+
+# Node (для будущего фронта)
+node_modules/
+frontend/dist/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
