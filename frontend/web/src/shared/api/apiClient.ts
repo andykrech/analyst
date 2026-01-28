@@ -1,0 +1,118 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
+interface FetchOptions extends RequestInit {
+  params?: Record<string, string>
+}
+
+class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public statusText: string,
+  ) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
+async function fetchJson<T>(
+  endpoint: string,
+  options: FetchOptions = {},
+): Promise<T> {
+  const { params, ...fetchOptions } = options
+
+  // Формируем URL
+  let url = `${API_BASE_URL}${endpoint}`
+  if (params) {
+    const searchParams = new URLSearchParams(params)
+    url += `?${searchParams.toString()}`
+  }
+
+  // Настройки по умолчанию
+  const defaultOptions: RequestInit = {
+    headers: {
+      'Content-Type': 'application/json',
+      ...fetchOptions.headers,
+    },
+  }
+
+  let response: Response
+  
+  try {
+    response = await fetch(url, {
+      ...defaultOptions,
+      ...fetchOptions,
+    })
+  } catch (error) {
+    // Обработка сетевых ошибок (включая CORS)
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new ApiError(
+        'Не удалось подключиться к серверу. Проверьте, что сервер запущен и CORS настроен правильно.',
+        0,
+        'Network Error'
+      )
+    }
+    throw error
+  }
+
+  if (!response.ok) {
+    let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+    
+    // Пытаемся получить детали ошибки из JSON ответа
+    try {
+      const contentType = response.headers.get('content-type')
+      if (contentType && contentType.includes('application/json')) {
+        const errorData = await response.json()
+        if (errorData.detail) {
+          errorMessage = errorData.detail
+        } else if (errorData.message) {
+          errorMessage = errorData.message
+        } else if (typeof errorData === 'string') {
+          errorMessage = errorData
+        }
+      } else {
+        // Если не JSON, пытаемся прочитать как текст
+        const text = await response.text()
+        if (text) {
+          errorMessage = text
+        }
+      }
+    } catch {
+      // Если не удалось распарсить ответ, используем дефолтное сообщение
+    }
+    
+    throw new ApiError(errorMessage, response.status, response.statusText)
+  }
+
+  // Если ответ пустой, возвращаем пустой объект
+  const contentType = response.headers.get('content-type')
+  if (!contentType || !contentType.includes('application/json')) {
+    return {} as T
+  }
+
+  return response.json()
+}
+
+export const apiClient = {
+  get: <T>(endpoint: string, options?: FetchOptions) =>
+    fetchJson<T>(endpoint, { ...options, method: 'GET' }),
+
+  post: <T>(endpoint: string, data?: unknown, options?: FetchOptions) =>
+    fetchJson<T>(endpoint, {
+      ...options,
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
+
+  put: <T>(endpoint: string, data?: unknown, options?: FetchOptions) =>
+    fetchJson<T>(endpoint, {
+      ...options,
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
+
+  delete: <T>(endpoint: string, options?: FetchOptions) =>
+    fetchJson<T>(endpoint, { ...options, method: 'DELETE' }),
+}
+
+export { ApiError }

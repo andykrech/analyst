@@ -1,0 +1,7 @@
+cd infra/docker
+docker compose up --build -d
+docker compose -f infra/docker/docker-compose.yml logs -f
+
+source backend/.venv/Scripts/activate
+
+docker compose exec backend alembic revision --autogenerate -m "Add users table"
