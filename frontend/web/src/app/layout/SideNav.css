@@ -1,0 +1,39 @@
+.side-nav {
+  width: 200px;
+  min-width: 200px;
+  height: 100%;
+  background: #f8f9fa;
+  border-right: 1px solid #e9ecef;
+  padding: 16px 0;
+}
+
+.side-nav__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.side-nav__item {
+  margin: 0;
+}
+
+.side-nav__link {
+  display: block;
+  padding: 10px 16px;
+  color: #333;
+  text-decoration: none;
+  font-size: 14px;
+  border-left: 3px solid transparent;
+  margin-left: 0;
+}
+
+.side-nav__link:hover {
+  background: #e9ecef;
+  color: #000;
+}
+
+.side-nav__link--active {
+  background: #e9ecef;
+  border-left-color: #007bff;
+  font-weight: 500;
+}

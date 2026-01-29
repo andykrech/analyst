@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { authApi } from '../api/authApi'
-import type { ApiError } from '@/shared/api/apiClient'
 import './VerifyPage.css'
 
 export function VerifyPage() {

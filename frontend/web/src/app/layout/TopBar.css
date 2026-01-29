@@ -1,0 +1,40 @@
+.top-bar {
+  height: 48px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: #fff;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.top-bar__spacer {
+  flex: 1;
+}
+
+.top-bar__user {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.top-bar__email {
+  font-size: 14px;
+  color: #666;
+}
+
+.top-bar__logout {
+  padding: 6px 12px;
+  font-size: 14px;
+  color: #333;
+  background: transparent;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.top-bar__logout:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}

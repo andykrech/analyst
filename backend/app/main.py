@@ -1,18 +1,33 @@
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
+from app.core.config import get_settings
 from app.core.logging_config import setup_logging
+from app.integrations.email import AuthEmailService, get_email_sender
 from app.modules.auth.router import router as auth_router
 
 # Настраиваем логирование при старте приложения
 setup_logging()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Инициализация при старте: конфиг и email-сервис."""
+    settings = get_settings()
+    email_sender = get_email_sender(settings)
+    app.state.auth_email_service = AuthEmailService(email_sender)
+    yield
+    # shutdown при необходимости
+
+
 app = FastAPI(
     title="Analyst API",
     description="Analyst application API",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Настройка CORS

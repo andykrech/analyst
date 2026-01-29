@@ -16,3 +16,25 @@ class RegisterRequest(BaseModel):
 
 class RegisterResponse(BaseModel):
     message: str
+
+
+class VerifyResponse(BaseModel):
+    message: str
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=1, max_length=100)
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    email: str
+
+
+class MeResponse(BaseModel):
+    """Текущий пользователь (GET /me). Задел под роли."""
+    id: str
+    email: str
+    roles: list[str] = []

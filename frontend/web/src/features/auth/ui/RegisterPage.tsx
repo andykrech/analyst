@@ -1,11 +1,9 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { authApi } from '../api/authApi'
-import type { ApiError } from '@/shared/api/apiClient'
 import './RegisterPage.css'
 
 export function RegisterPage() {
-  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')

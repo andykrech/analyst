@@ -1,4 +1,7 @@
 import logging
+import uuid
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
@@ -8,6 +11,23 @@ from passlib.context import CryptContext
 
 logger = logging.getLogger(__name__)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+async def get_by_id(session: AsyncSession, user_id: uuid.UUID) -> User | None:
+    """Получить пользователя по id."""
+    result = await session.execute(select(User).where(User.id == user_id))
+    return result.scalar_one_or_none()
+
+
+async def confirm_email(session: AsyncSession, user_id: uuid.UUID) -> User | None:
+    """Установить email_verified_at для пользователя (идемпотентно: не перезаписывает, если уже установлен). Возвращает пользователя или None."""
+    user = await get_by_id(session, user_id)
+    if not user:
+        return None
+    if user.email_verified_at is None:
+        user.email_verified_at = datetime.now(timezone.utc)
+        await session.flush()
+    return user
 
 
 async def get_by_email(session: AsyncSession, email: str) -> User | None:

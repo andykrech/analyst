@@ -4,14 +4,29 @@ interface FetchOptions extends RequestInit {
   params?: Record<string, string>
 }
 
+let authTokenGetter: (() => string | null) | null = null
+let onUnauthorized: (() => void) | null = null
+
+export function setAuthTokenGetter(getter: (() => string | null) | null): void {
+  authTokenGetter = getter
+}
+
+export function setOnUnauthorized(handler: (() => void) | null): void {
+  onUnauthorized = handler
+}
+
 class ApiError extends Error {
+  status: number
+  statusText: string
   constructor(
     message: string,
-    public status: number,
-    public statusText: string,
+    status: number,
+    statusText: string,
   ) {
     super(message)
     this.name = 'ApiError'
+    this.status = status
+    this.statusText = statusText
   }
 }
 
@@ -28,21 +43,30 @@ async function fetchJson<T>(
     url += `?${searchParams.toString()}`
   }
 
-  // Настройки по умолчанию
-  const defaultOptions: RequestInit = {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(fetchOptions.headers as Record<string, string>),
+  }
+  const token = authTokenGetter?.() ?? null
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+  const requestOptions: RequestInit = {
+    ...fetchOptions,
     headers: {
-      'Content-Type': 'application/json',
-      ...fetchOptions.headers,
+      ...headers,
+      ...(fetchOptions.headers &&
+      typeof fetchOptions.headers === 'object' &&
+      !Array.isArray(fetchOptions.headers)
+        ? (fetchOptions.headers as Record<string, string>)
+        : {}),
     },
   }
 
   let response: Response
-  
+
   try {
-    response = await fetch(url, {
-      ...defaultOptions,
-      ...fetchOptions,
-    })
+    response = await fetch(url, requestOptions)
   } catch (error) {
     // Обработка сетевых ошибок (включая CORS)
     if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -53,6 +77,10 @@ async function fetchJson<T>(
       )
     }
     throw error
+  }
+
+  if (response.status === 401 && onUnauthorized) {
+    onUnauthorized()
   }
 
   if (!response.ok) {
