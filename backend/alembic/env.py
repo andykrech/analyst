@@ -9,12 +9,11 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncConnection
 
 from alembic import context
 
-# Загружаем переменные окружения из .env
+# Загружаем переменные окружения из .env (override=False: не перезаписывать уже заданные, например DATABASE_URL из Docker)
 from dotenv import load_dotenv
 
-# Загружаем .env файл из корня backend
 env_path = Path(__file__).parent.parent / ".env"
-load_dotenv(env_path)
+load_dotenv(env_path, override=False)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -41,6 +40,18 @@ from app.db.base import Base
 # Импортируем все модели для autogenerate
 from app.modules.user.model import User  # noqa: F401
 from app.modules.auth_token.model import AuthToken  # noqa: F401
+from app.modules.theme.model import Theme  # noqa: F401
+from app.modules.source_link.model import SourceLink  # noqa: F401
+from app.modules.search_run.model import SearchRun  # noqa: F401
+from app.modules.digest.model import Digest, DigestSourceLink  # noqa: F401
+from app.modules.entity.model import Entity  # noqa: F401
+from app.modules.relation.model import Relation  # noqa: F401
+from app.modules.event.model import (  # noqa: F401
+    Event,
+    EventDigestLink,
+    EventEntityLink,
+    EventSourceLink,
+)
 
 # add your model's MetaData object here
 # for 'autogenerate' support

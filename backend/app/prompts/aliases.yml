@@ -1,0 +1,6 @@
+# Алиасы промптов: alias -> canonical name (опционально, дублируют aliases из .md при желании)
+# theme.init: theme.init.v1
+# extraction.extract_events: extraction.extract_events.v1
+# extraction.extract_entities: extraction.extract_entities.v1
+# digest.weekly: digest.weekly.v1
+# overview.update: overview.update.v1

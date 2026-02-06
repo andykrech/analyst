@@ -10,3 +10,11 @@ PyJWT>=2.8
 email-validator
 aiosmtplib
 httpx
+PyYAML>=6.0
+pytest
+pytest-asyncio
+protobuf==5.29.4
+grpcio==1.71.0
+grpcio-tools==1.71.0
+googleapis-common-protos==1.70.0
+charset_normalizer>=3.3.0

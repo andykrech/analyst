@@ -1,0 +1,6 @@
+{
+  "extraPaths": [
+    "backend/app/integrations/search/retrievers/yandex/grpc"
+  ],
+  "reportUnknownMemberType": "none"
+}
