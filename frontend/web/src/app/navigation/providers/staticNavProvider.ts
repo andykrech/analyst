@@ -4,7 +4,7 @@ const items = [
   {
     key: 'new-topic',
     label: 'Новая тема',
-    path: '/topics/new',
+    path: '/topic/theme',
   },
 ]
 

@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -131,4 +132,73 @@ class Theme(Base):
         DateTime(timezone=True),
         nullable=True,
         comment="Дата и время мягкого удаления темы (soft delete)",
+    )
+
+
+class ThemeSearchQuery(Base):
+    """
+    Явный поисковый запрос по теме (составляющая темы).
+
+    theme_search_queries — источник истины для планировщика поиска.
+    Keywords, must_have, exclude из themes — лишь подсказки для пользователя.
+    """
+
+    __tablename__ = "theme_search_queries"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        comment="Уникальный идентификатор поискового запроса",
+    )
+    theme_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("themes.id", ondelete="CASCADE"),
+        nullable=False,
+        comment="Ссылка на тему",
+    )
+    order_index: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Порядок выполнения запроса внутри темы",
+    )
+    title: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Короткое название запроса для UI",
+    )
+    query_text: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Явный текст поискового запроса",
+    )
+    must_have: Mapped[list | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Список обязательных слов/фраз",
+    )
+    exclude: Mapped[list | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Список слов/фраз-исключений",
+    )
+    time_window_days: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Ограничение по давности в днях, NULL = по умолчанию",
+    )
+    target_links: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Максимум ссылок с этого запроса, NULL = без ограничения",
+    )
+    enabled_retrievers: Mapped[list | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Ограничение retriever'ов для этого запроса",
+    )
+    is_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        comment="Включён ли запрос в план поиска",
     )

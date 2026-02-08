@@ -7,6 +7,40 @@ from urllib.parse import urlparse, urlunparse
 from app.integrations.search.schemas import LinkCandidate
 
 
+def _text_for_filtering(item: LinkCandidate) -> str:
+    """Текст для проверки must_have/exclude (title + snippet + url)."""
+    parts = [
+        item.title or "",
+        item.snippet or "",
+        item.url or "",
+    ]
+    return " ".join(parts).lower()
+
+
+def filter_by_must_have(items: list[LinkCandidate], must_have: list[str]) -> list[LinkCandidate]:
+    """Оставить только элементы, содержащие все фразы из must_have."""
+    if not must_have:
+        return items
+    result: list[LinkCandidate] = []
+    for item in items:
+        text = _text_for_filtering(item)
+        if all(phrase.lower() in text for phrase in must_have if phrase):
+            result.append(item)
+    return result
+
+
+def filter_by_exclude(items: list[LinkCandidate], exclude: list[str]) -> list[LinkCandidate]:
+    """Убрать элементы, содержащие любую фразу из exclude."""
+    if not exclude:
+        return items
+    result: list[LinkCandidate] = []
+    for item in items:
+        text = _text_for_filtering(item)
+        if not any(phrase.lower() in text for phrase in exclude if phrase):
+            result.append(item)
+    return result
+
+
 def normalize_url(url: str) -> str:
     """
     Нормализовать URL: trim, убрать fragment, привести scheme/host к lower,

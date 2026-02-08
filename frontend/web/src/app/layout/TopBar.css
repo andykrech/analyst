@@ -1,4 +1,5 @@
 .top-bar {
+  flex-shrink: 0;
   height: 48px;
   min-height: 48px;
   display: flex;

@@ -42,13 +42,8 @@ class YandexRetriever:
         if not api_key or api_key == "changeme" or not folder_id or folder_id == "changeme":
             return self._stub_retrieve(step)
 
-        # Только первое ключевое слово для запроса
-        query_text = (
-            step.query.keywords[0]
-            if step.query.keywords
-            else (step.query.text or " ")
-        )
-        query_text = (query_text or " ").strip()
+        # query_text — явный текст запроса (из theme_search_queries или legacy)
+        query_text = (step.query_text or " ").strip()
         if not query_text:
             return []
 
@@ -169,11 +164,10 @@ class YandexRetriever:
         """Заглушка при отсутствии настроек (для тестов и локальной разработки)."""
         import hashlib
 
-        query = step.query
         seed = (
-            step.query.keywords[0]
-            if step.query.keywords
-            else (query.text or " ".join(query.must_have) or "empty")
+            step.query_text
+            or " ".join(step.must_have)
+            or "empty"
         )
         seed_hash = hashlib.sha256(str(seed).encode("utf-8")).hexdigest()[:8]
         count = min(20 + (int(seed_hash, 16) % 41), step.max_results)

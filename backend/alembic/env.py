@@ -40,7 +40,7 @@ from app.db.base import Base
 # Импортируем все модели для autogenerate
 from app.modules.user.model import User  # noqa: F401
 from app.modules.auth_token.model import AuthToken  # noqa: F401
-from app.modules.theme.model import Theme  # noqa: F401
+from app.modules.theme.model import Theme, ThemeSearchQuery  # noqa: F401
 from app.modules.source_link.model import SourceLink  # noqa: F401
 from app.modules.search_run.model import SearchRun  # noqa: F401
 from app.modules.digest.model import Digest, DigestSourceLink  # noqa: F401

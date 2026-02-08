@@ -4,12 +4,13 @@ import { RegisterPage } from '@/features/auth/ui/RegisterPage'
 import { VerifyPage } from '@/features/auth/ui/VerifyPage'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { AppLayout } from '@/app/layout/AppLayout'
-import { NewTopicPage } from '@/features/topics/ui/NewTopicPage'
+import { ThemePage } from '@/features/topic/ui/ThemePage'
+import { SourcesPage } from '@/features/topic/ui/SourcesPage'
 
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <Navigate to="/topics/new" replace />,
+    element: <Navigate to="/topic/theme" replace />,
   },
   {
     path: '/login',
@@ -33,11 +34,24 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <Navigate to="/topics/new" replace />,
+        element: <Navigate to="/topic/theme" replace />,
       },
       {
-        path: 'topics/new',
-        element: <NewTopicPage />,
+        path: 'topic',
+        children: [
+          {
+            index: true,
+            element: <Navigate to="/topic/theme" replace />,
+          },
+          {
+            path: 'theme',
+            element: <ThemePage />,
+          },
+          {
+            path: 'sources',
+            element: <SourcesPage />,
+          },
+        ],
       },
     ],
   },

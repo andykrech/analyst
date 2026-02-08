@@ -1,17 +1,93 @@
 """
-SearchPlanner: строит план поиска по query и настройкам.
+SearchPlanner: строит план поиска.
+
+theme_search_queries — источник истины для планирования поиска.
+Planner не использует keywords темы, не использует TimeSlice.
 """
+from uuid import UUID
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.config import Settings
 from app.integrations.search.schemas import QueryStep, SearchPlan, SearchQuery
+from app.modules.theme.model import ThemeSearchQuery
 
 
 class SearchPlanner:
     """
-    Планировщик поиска: определяет retriever'ы и создаёт шаги плана.
+    Планировщик поиска: читает theme_search_queries и создаёт шаги плана.
     """
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+
+    async def build_plan_for_theme(
+        self,
+        session: AsyncSession,
+        theme_id: UUID,
+        mode: str = "default",
+    ) -> SearchPlan:
+        """
+        Построить план поиска из theme_search_queries.
+
+        SELECT FROM theme_search_queries
+        WHERE theme_id = :theme_id AND is_enabled = true
+        ORDER BY order_index ASC
+
+        Для каждой записи: retriever'ы из enabled_retrievers или settings.SEARCH_DEFAULT_RETRIEVERS.
+        max_results: settings.SEARCH_MAX_RESULTS_PER_RETRIEVER, ограниченный target_links записи.
+        """
+        result = await session.execute(
+            select(ThemeSearchQuery)
+            .where(
+                ThemeSearchQuery.theme_id == theme_id,
+                ThemeSearchQuery.is_enabled == True,
+            )
+            .order_by(ThemeSearchQuery.order_index.asc())
+        )
+        rows = result.scalars().all()
+
+        default_retrievers = self._settings.SEARCH_DEFAULT_RETRIEVERS
+        max_per_retriever = self._settings.SEARCH_MAX_RESULTS_PER_RETRIEVER
+        default_max = self._settings.SEARCH_DEFAULT_TARGET_LINKS
+
+        steps: list[QueryStep] = []
+        for row in rows:
+            retrievers = (
+                row.enabled_retrievers
+                if row.enabled_retrievers
+                else default_retrievers
+            )
+            must_have = list(row.must_have) if row.must_have else []
+            exclude = list(row.exclude) if row.exclude else []
+
+            for retriever_name in retrievers:
+                base_max = max_per_retriever.get(retriever_name, default_max)
+                max_results = (
+                    min(base_max, row.target_links)
+                    if row.target_links is not None
+                    else base_max
+                )
+                step_id = f"q{row.order_index}-{row.id}-{retriever_name}"
+                steps.append(
+                    QueryStep(
+                        step_id=step_id,
+                        retriever=retriever_name,
+                        source_query_id=row.id,
+                        order_index=row.order_index,
+                        query_text=row.query_text or "",
+                        must_have=must_have,
+                        exclude=exclude,
+                        max_results=max_results,
+                    )
+                )
+
+        return SearchPlan(
+            plan_version=1,
+            mode=mode if mode in ("discovery", "monitoring") else "discovery",
+            steps=steps,
+        )
 
     def build_plan(
         self,
@@ -19,28 +95,37 @@ class SearchPlanner:
         mode: str = "discovery",
     ) -> SearchPlan:
         """
-        Построить план поиска.
-
-        Retriever'ы: query.enabled_retrievers или settings.SEARCH_DEFAULT_RETRIEVERS.
-        max_results: settings.SEARCH_MAX_RESULTS_PER_RETRIEVER.get(name, default).
+        Legacy: построить план по SearchQuery (для обратной совместимости).
         """
         retrievers = (
             query.enabled_retrievers
-            if query.enabled_retrievers is not None and len(query.enabled_retrievers) > 0
+            if query.enabled_retrievers
             else self._settings.SEARCH_DEFAULT_RETRIEVERS
         )
         max_per = self._settings.SEARCH_MAX_RESULTS_PER_RETRIEVER
         default_max = self._settings.SEARCH_DEFAULT_TARGET_LINKS
 
         steps: list[QueryStep] = []
+        query_text = (
+            (query.keywords[0] if query.keywords else None)
+            or query.text
+            or " "
+        )
+        must_have = query.must_have or []
+        exclude = query.exclude or []
+
         for idx, retriever_name in enumerate(retrievers):
             max_results = max_per.get(retriever_name, default_max)
-            step_id = f"step_{idx}_{retriever_name}"
+            step_id = f"legacy_{idx}_{retriever_name}"
             steps.append(
                 QueryStep(
                     step_id=step_id,
                     retriever=retriever_name,
-                    query=query,
+                    source_query_id=UUID("00000000-0000-0000-0000-000000000000"),
+                    order_index=idx,
+                    query_text=query_text,
+                    must_have=must_have,
+                    exclude=exclude,
                     max_results=max_results,
                 )
             )

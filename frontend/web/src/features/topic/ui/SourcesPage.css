@@ -1,0 +1,9 @@
+.sources-page {
+  padding: 24px 0;
+}
+
+.sources-page__placeholder {
+  margin: 0;
+  font-size: 16px;
+  color: #6c757d;
+}

@@ -3,12 +3,35 @@ Pydantic-схемы для поискового интеграционного �
 """
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 
+# --- TimeSlice: универсальный параметр выполнения поиска ---
+# Используется и для исторического backfill (много запусков с разными периодами),
+# и для текущего мониторинга (один запуск со "скользящим" TimeSlice).
+# Логика генерации TimeSlice (месяцы, последние N дней) — в отдельных функциях,
+# не в SearchService.
+class TimeSlice(BaseModel):
+    """Временной срез для фильтрации результатов по дате публикации."""
+
+    published_from: datetime
+    published_to: datetime
+    label: str | None = None
+
+
+class ThemeSearchCollectRequest(BaseModel):
+    """Запрос на сбор ссылок по теме."""
+
+    theme_id: UUID
+    published_from: datetime | None = None
+    published_to: datetime | None = None
+    target_links: int | None = None
+
+
 class SearchQuery(BaseModel):
-    """Параметры поискового запроса."""
+    """Параметры поискового запроса (legacy, для обратной совместимости)."""
 
     text: str | None = None
     keywords: list[str] = []
@@ -36,12 +59,21 @@ class LinkCandidate(BaseModel):
 
 
 class QueryStep(BaseModel):
-    """Шаг плана: поисковый запрос к retriever'у."""
+    """
+    Шаг плана: поисковый запрос к retriever'у.
+
+    Planner не знает про время. Retriever не знает про время.
+    Временная фильтрация (TimeSlice) применяется в Executor после поиска.
+    """
 
     kind: Literal["query"] = "query"
     step_id: str
     retriever: str  # имя retriever'а (например "yandex")
-    query: SearchQuery
+    source_query_id: UUID  # id из theme_search_queries
+    order_index: int
+    query_text: str
+    must_have: list[str] = []
+    exclude: list[str] = []
     max_results: int
 
 
@@ -61,6 +93,9 @@ class StepResult(BaseModel):
     """Результат выполнения одного шага плана."""
 
     step_id: str
+    source_query_id: UUID | None = None
+    retriever: str | None = None
+    order_index: int | None = None
     status: Literal["done", "failed", "skipped"]
     found: int
     returned: int

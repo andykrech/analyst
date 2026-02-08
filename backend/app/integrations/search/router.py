@@ -1,10 +1,16 @@
 """
-Роутер поиска: POST /api/v1/search/collect.
+Роутер поиска: POST /api/v1/search/collect, POST /api/v1/search/collect-by-theme.
 """
 from fastapi import APIRouter, Depends, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
-from app.integrations.search.schemas import LinkCollectResult, SearchQuery
+from app.db.session import get_db
+from app.integrations.search.schemas import (
+    LinkCollectResult,
+    SearchQuery,
+    ThemeSearchCollectRequest,
+    TimeSlice,
+)
 from app.integrations.search.service import SearchService
 
 router = APIRouter(prefix="/api/v1/search", tags=["search"])
@@ -21,12 +27,38 @@ async def collect_links(
     search_service: SearchService = Depends(get_search_service),
 ) -> LinkCollectResult:
     """
-    Собрать релевантные ссылки по поисковому запросу.
-
-    Использует target_links из запроса, если задан; иначе — настройки по умолчанию.
+    Legacy: собрать релевантные ссылки по поисковому запросу (SearchQuery).
     """
     return await search_service.collect_links(
         query=body,
         mode="discovery",
+        request_id=None,
+    )
+
+
+@router.post("/collect-by-theme", response_model=LinkCollectResult)
+async def collect_links_by_theme(
+    body: ThemeSearchCollectRequest,
+    db: AsyncSession = Depends(get_db),
+    search_service: SearchService = Depends(get_search_service),
+) -> LinkCollectResult:
+    """
+    Собрать ссылки по теме из theme_search_queries.
+
+    Если переданы published_from и published_to — создаётся TimeSlice,
+    иначе time_slice = None (без фильтра по дате).
+    """
+    time_slice = None
+    if body.published_from is not None and body.published_to is not None:
+        time_slice = TimeSlice(
+            published_from=body.published_from,
+            published_to=body.published_to,
+        )
+    return await search_service.collect_links_for_theme(
+        session=db,
+        theme_id=body.theme_id,
+        time_slice=time_slice,
+        target_links=body.target_links,
+        mode="default",
         request_id=None,
     )
