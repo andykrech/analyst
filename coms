@@ -1,7 +1,6 @@
-cd infra/docker
-docker compose up --build -d
+cd infra/docker && docker compose up --build -d
 docker compose -f infra/docker/docker-compose.yml logs -f
-cd frontend/web
+cd frontend/web && npm run dev
 
 source backend/.venv/Scripts/activate
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Term } from '@/shared/types/term'
 import { useTopicStore } from '@/app/store/topicStore'
+import { themesApi } from '@/features/topic/api/themesApi'
 import { LanguagesBlock } from './LanguagesBlock'
 import { TermEditModal } from './TermEditModal'
 import './ThemePage.css'
@@ -108,34 +109,110 @@ export function ThemePage() {
   const suggestThemeFromDescription = useTopicStore(
     (s) => s.suggestThemeFromDescription
   )
+  const applyTranslations = useTopicStore((s) => s.applyTranslations)
+
+  type TermListName = 'keywords' | 'requiredWords' | 'excludedWords'
 
   const [selectedTermId, setSelectedTermId] = useState<string | null>(null)
+  const [selectedListName, setSelectedListName] =
+    useState<TermListName | null>(null)
+  const [isTranslating, setIsTranslating] = useState(false)
+
   const selectedTerm =
-    selectedTermId != null
-      ? theme.keywords.find((t) => t.id === selectedTermId) ?? null
+    selectedTermId != null && selectedListName != null
+      ? theme[selectedListName].find((t) => t.id === selectedTermId) ?? null
       : null
   const isModalOpen = selectedTermId !== null && selectedTerm !== null
   const additionalLanguages = theme.languages.slice(1)
 
+  const openTermModal = (id: string, listName: TermListName) => {
+    setSelectedTermId(id)
+    setSelectedListName(listName)
+  }
+
   useEffect(() => {
     if (selectedTermId !== null && selectedTerm === null) {
       setSelectedTermId(null)
+      setSelectedListName(null)
     }
   }, [selectedTermId, selectedTerm])
 
-  const handleCloseModal = () => setSelectedTermId(null)
+  const handleCloseModal = () => {
+    setSelectedTermId(null)
+    setSelectedListName(null)
+  }
 
   const handleSaveTerm = (updated: {
     context: string
     translations: Record<string, string>
   }) => {
-    if (selectedTermId) {
-      updateThemeTerm('keywords', selectedTermId, updated)
-      setSelectedTermId(null)
+    if (selectedTermId && selectedListName) {
+      updateThemeTerm(selectedListName, selectedTermId, updated)
+      handleCloseModal()
     }
   }
 
+  const allTerms: Term[] = [
+    ...theme.keywords,
+    ...theme.requiredWords,
+    ...theme.excludedWords,
+  ]
+
   const queriesPreview = buildSearchQueriesPreview(theme)
+
+  const hasTitle = theme.title.trim().length > 0
+  const hasAnyTerms =
+    theme.keywords.length > 0 ||
+    theme.requiredWords.length > 0 ||
+    theme.excludedWords.length > 0
+
+  const hasAdditionalLanguages = additionalLanguages.length > 0
+  const allAlreadyTranslated =
+    hasAdditionalLanguages &&
+    allTerms.length > 0 &&
+    allTerms.every((t) => !t.needsTranslation)
+
+  const canTranslate =
+    !isTranslating &&
+    hasAdditionalLanguages &&
+    allTerms.length > 0 &&
+    !allAlreadyTranslated
+
+  const handleTranslateAll = async () => {
+    if (!canTranslate) return
+    const sourceLang = theme.languages[0]
+    const targetLangs = theme.languages.slice(1)
+    if (!sourceLang || targetLangs.length === 0) return
+
+    const termsPayload = allTerms.map((t) => ({
+      id: t.id,
+      text: t.text,
+      context: t.context,
+    }))
+
+    if (termsPayload.length === 0) return
+
+    setIsTranslating(true)
+    try {
+      for (const targetLanguage of targetLangs) {
+        const response = await themesApi.translateTerms({
+          source_language: sourceLang,
+          target_language: targetLanguage,
+          terms: termsPayload,
+        })
+        applyTranslations(targetLanguage, response.translations)
+      }
+    } catch (e) {
+      const message =
+        e instanceof Error
+          ? e.message
+          : 'Ошибка при переводе ключевых слов'
+      // eslint-disable-next-line no-alert
+      alert(message)
+    } finally {
+      setIsTranslating(false)
+    }
+  }
 
   return (
     <div className="theme-page">
@@ -174,7 +251,9 @@ export function ThemePage() {
             className="theme-page__suggest-btn"
             onClick={() => suggestThemeFromDescription()}
             disabled={
-              aiSuggest.isLoading || theme.description.trim().length < 3
+              aiSuggest.isLoading ||
+              theme.description.trim().length < 3 ||
+              (hasTitle && hasAnyTerms)
             }
           >
             {aiSuggest.isLoading
@@ -195,7 +274,7 @@ export function ThemePage() {
           terms={theme.keywords}
           onAdd={addThemeKeyword}
           onRemove={removeThemeKeyword}
-          onTermClick={(id) => setSelectedTermId(id)}
+          onTermClick={(id) => openTermModal(id, 'keywords')}
           placeholder="Добавить ключевое слово"
         />
       </section>
@@ -214,6 +293,7 @@ export function ThemePage() {
           terms={theme.requiredWords}
           onAdd={addThemeRequiredWord}
           onRemove={removeThemeRequiredWord}
+          onTermClick={(id) => openTermModal(id, 'requiredWords')}
           placeholder="Добавить обязательное слово"
         />
       </section>
@@ -224,8 +304,20 @@ export function ThemePage() {
           terms={theme.excludedWords}
           onAdd={addThemeExcludedWord}
           onRemove={removeThemeExcludedWord}
+          onTermClick={(id) => openTermModal(id, 'excludedWords')}
           placeholder="Добавить минус-слово"
         />
+      </section>
+
+      <section className="theme-page__block">
+        <button
+          type="button"
+          className="theme-page__suggest-btn"
+          disabled={!canTranslate}
+          onClick={handleTranslateAll}
+        >
+          {isTranslating ? 'Перевод...' : 'Перевести ключевые слова'}
+        </button>
       </section>
 
       <section className="theme-page__block">

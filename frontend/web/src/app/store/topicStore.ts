@@ -1,5 +1,9 @@
 import { create } from 'zustand'
-import type { ThemePrepareResponse } from '@/features/topic/api/themesApi'
+import type {
+  ThemePrepareResponse,
+  TermDTO,
+  TermTranslationDto,
+} from '@/features/topic/api/themesApi'
 import { themesApi } from '@/features/topic/api/themesApi'
 import type { Term } from '@/shared/types/term'
 
@@ -14,27 +18,46 @@ export interface TopicTheme {
   excludedWords: Term[]
 }
 
+function termFromDto(dto: TermDTO, hasAdditionalLangs: boolean): Term {
+  return {
+    id: crypto.randomUUID(),
+    text: (dto.text ?? '').trim(),
+    context: (dto.context ?? '').trim(),
+    translations: {},
+    needsTranslation: hasAdditionalLangs,
+  }
+}
+
+function termsFromDtos(
+  dtos: TermDTO[] | (string | TermDTO)[] | undefined | null,
+  hasAdditionalLangs: boolean
+): Term[] {
+  if (dtos == null) return []
+  const seen = new Set<string>()
+  const result: Term[] = []
+  for (const item of dtos) {
+    const dto: TermDTO =
+      typeof item === 'string'
+        ? { text: item, context: '' }
+        : { text: (item as TermDTO)?.text ?? '', context: (item as TermDTO)?.context ?? '' }
+    const text = dto.text.trim()
+    if (!text) continue
+    const lower = text.toLowerCase()
+    if (seen.has(lower)) continue
+    seen.add(lower)
+    result.push(termFromDto(dto, hasAdditionalLangs))
+  }
+  return result
+}
+
 function termsFromStrings(
   items: string[],
-  hasAdditionalLanguages: boolean
+  hasAdditionalLangs: boolean
 ): Term[] {
-  const seen = new Set<string>()
-  return items
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
-    .filter((s) => {
-      const lower = s.toLowerCase()
-      if (seen.has(lower)) return false
-      seen.add(lower)
-      return true
-    })
-    .map((text) => ({
-      id: crypto.randomUUID(),
-      text,
-      context: '',
-      translations: {},
-      needsTranslation: hasAdditionalLanguages,
-    }))
+  return termsFromDtos(
+    items.map((s) => ({ text: s, context: '' })),
+    hasAdditionalLangs
+  )
 }
 
 export interface TopicData {
@@ -110,6 +133,10 @@ interface TopicStore {
   setPrimaryLanguage: (code: string) => void
   addAdditionalLanguage: (code: string) => void
   removeAdditionalLanguage: (code: string) => void
+  applyTranslations: (
+    targetLanguage: string,
+    translations: TermTranslationDto[]
+  ) => void
   updateThemeTerm: (
     listName: 'keywords' | 'requiredWords' | 'excludedWords',
     termId: string,
@@ -160,8 +187,8 @@ export const useTopicStore = create<TopicStore>((set) => ({
   applyThemeSuggestions: (payload) =>
     set((s) => {
       const r = payload.result
-      const hasAdditional =
-        s.data.theme.languages.slice(1).length > 0
+      const hasAdditionalLangs =
+        s.data.theme.languages.length > 1
       return {
         ...s,
         status: 'dirty',
@@ -170,9 +197,9 @@ export const useTopicStore = create<TopicStore>((set) => ({
           theme: {
             ...s.data.theme,
             title: r.title?.trim() ?? s.data.theme.title,
-            keywords: termsFromStrings(r.keywords ?? [], hasAdditional),
-            requiredWords: termsFromStrings(r.must_have ?? [], hasAdditional),
-            excludedWords: termsFromStrings(r.excludes ?? [], hasAdditional),
+            keywords: termsFromDtos(r.keywords, hasAdditionalLangs),
+            requiredWords: termsFromDtos(r.must_have, hasAdditionalLangs),
+            excludedWords: termsFromDtos(r.excludes, hasAdditionalLangs),
           },
         },
       }
@@ -330,6 +357,57 @@ export const useTopicStore = create<TopicStore>((set) => ({
         data: {
           ...s.data,
           theme: { ...s.data.theme, languages: newLanguages },
+        },
+      }
+    }),
+
+  applyTranslations: (targetLanguage, translations) =>
+    set((s) => {
+      const theme = s.data.theme
+      const additionalLangs = theme.languages.slice(1)
+      if (additionalLangs.length === 0) return s
+
+      const map = new Map<string, string>()
+      for (const t of translations) {
+        if (t.id && t.translation) {
+          map.set(t.id, t.translation)
+        }
+      }
+      if (map.size === 0) return s
+
+      const updateList = (list: Term[]): Term[] =>
+        list.map((term) => {
+          const translated = map.get(term.id)
+          if (!translated) return term
+          const translationsForTerm = {
+            ...term.translations,
+            [targetLanguage]: translated,
+          }
+          const hasAllTranslations =
+            additionalLangs.length > 0 &&
+            additionalLangs.every((lang) => {
+              const v = translationsForTerm[lang]
+              return typeof v === 'string' && v.trim().length > 0
+            })
+
+          return {
+            ...term,
+            translations: translationsForTerm,
+            needsTranslation: !hasAllTranslations,
+          }
+        })
+
+      return {
+        ...s,
+        status: 'dirty',
+        data: {
+          ...s.data,
+          theme: {
+            ...theme,
+            keywords: updateList(theme.keywords),
+            requiredWords: updateList(theme.requiredWords),
+            excludedWords: updateList(theme.excludedWords),
+          },
         },
       }
     }),
