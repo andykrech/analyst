@@ -10,7 +10,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.integrations.search.schemas import QueryStep, SearchPlan, SearchQuery
+from app.integrations.search.schemas import (
+    ExcludeBlock,
+    KeywordsBlock,
+    KeywordGroup,
+    MustBlock,
+    QueryModel,
+    QueryStep,
+    SearchPlan,
+    SearchQuery,
+)
 from app.modules.theme.model import ThemeSearchQuery
 
 
@@ -54,13 +63,15 @@ class SearchPlanner:
 
         steps: list[QueryStep] = []
         for row in rows:
+            if not row.query_model:
+                # Защита от неконсистентных данных (минимально)
+                continue
+
             retrievers = (
                 row.enabled_retrievers
                 if row.enabled_retrievers
                 else default_retrievers
             )
-            must_have = list(row.must_have) if row.must_have else []
-            exclude = list(row.exclude) if row.exclude else []
 
             for retriever_name in retrievers:
                 base_max = max_per_retriever.get(retriever_name, default_max)
@@ -76,9 +87,7 @@ class SearchPlanner:
                         retriever=retriever_name,
                         source_query_id=row.id,
                         order_index=row.order_index,
-                        query_text=row.query_text or "",
-                        must_have=must_have,
-                        exclude=exclude,
+                        query_model=QueryModel.model_validate(row.query_model),
                         max_results=max_results,
                     )
                 )
@@ -106,13 +115,34 @@ class SearchPlanner:
         default_max = self._settings.SEARCH_DEFAULT_TARGET_LINKS
 
         steps: list[QueryStep] = []
-        query_text = (
-            (query.keywords[0] if query.keywords else None)
-            or query.text
-            or " "
+        # Legacy: строим минимальный QueryModel из SearchQuery.
+        # keywords -> одна группа с op=OR,
+        # text (если есть и нет keywords) -> один терм.
+        if query.keywords:
+            base_terms = query.keywords
+        elif query.text:
+            base_terms = [query.text]
+        else:
+            base_terms = [" "]
+
+        legacy_query_model = QueryModel(
+            keywords=KeywordsBlock(
+                groups=[
+                    KeywordGroup(
+                        op="OR",
+                        terms=base_terms,
+                    )
+                ],
+                connectors=[],
+            ),
+            must=MustBlock(
+                mode="ALL",
+                terms=query.must_have or [],
+            ),
+            exclude=ExcludeBlock(
+                terms=query.exclude or [],
+            ),
         )
-        must_have = query.must_have or []
-        exclude = query.exclude or []
 
         for idx, retriever_name in enumerate(retrievers):
             max_results = max_per.get(retriever_name, default_max)
@@ -123,9 +153,7 @@ class SearchPlanner:
                     retriever=retriever_name,
                     source_query_id=UUID("00000000-0000-0000-0000-000000000000"),
                     order_index=idx,
-                    query_text=query_text,
-                    must_have=must_have,
-                    exclude=exclude,
+                    query_model=legacy_query_model,
                     max_results=max_results,
                 )
             )

@@ -166,20 +166,10 @@ class ThemeSearchQuery(Base):
         nullable=True,
         comment="Короткое название запроса для UI",
     )
-    query_text: Mapped[str] = mapped_column(
-        Text,
+    query_model: Mapped[dict] = mapped_column(
+        JSONB,
         nullable=False,
-        comment="Явный текст поискового запроса",
-    )
-    must_have: Mapped[list | None] = mapped_column(
-        JSONB,
-        nullable=True,
-        comment="Список обязательных слов/фраз",
-    )
-    exclude: Mapped[list | None] = mapped_column(
-        JSONB,
-        nullable=True,
-        comment="Список слов/фраз-исключений",
+        comment="Структурная модель поискового запроса",
     )
     time_window_days: Mapped[int | None] = mapped_column(
         Integer,

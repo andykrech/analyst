@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 from charset_normalizer import from_bytes
 
 from app.integrations.search.ports import LinkRetrieverPort, RetrieverContext
-from app.integrations.search.schemas import LinkCandidate, QueryStep
+from app.integrations.search.schemas import LinkCandidate, QueryModel, QueryStep
 from app.integrations.search.retrievers.yandex.grpc.yandex.cloud.searchapi.v2 import (
     search_query_pb2,
     search_service_pb2,
@@ -25,6 +25,66 @@ from app.integrations.search.retrievers.yandex.grpc.yandex.cloud.operation impor
 def _strip_hlword(text: str) -> str:
     """Убрать теги <hlword> из текста."""
     return re.sub(r"</?hlword>", "", text).strip()
+
+
+def _quote_term(term: str) -> str:
+    """Минимальное экранирование терма для текстового запроса."""
+    s = (term or "").strip()
+    if not s:
+        return ""
+    if " " in s:
+        return f"\"{s}\""
+    return s
+
+
+def _compile_query_model_to_string(model: QueryModel) -> str:
+    """
+    Минимальная компиляция QueryModel в строковый запрос для Yandex.
+
+    - keywords: группы в скобках, термы внутри через op (OR/AND), группы через connectors.
+    - must: mode=ALL -> каждый терм как +term; mode=ANY -> +(<t1 OR t2 ...>).
+    - exclude: каждый терм как -term.
+    """
+    parts: list[str] = []
+
+    # --- keywords ---
+    group_strs: list[str] = []
+    for group in model.keywords.groups:
+        term_parts = [_quote_term(t) for t in group.terms]
+        term_parts = [t for t in term_parts if t]
+        if not term_parts:
+            continue
+        op = " AND " if group.op == "AND" else " OR "
+        group_expr = op.join(term_parts)
+        group_strs.append(f"({group_expr})")
+
+    if group_strs:
+        expr = group_strs[0]
+        for idx, conn in enumerate(model.keywords.connectors, start=1):
+            connector = " AND " if conn == "AND" else " OR "
+            if idx < len(group_strs):
+                expr = f"{expr}{connector}{group_strs[idx]}"
+        parts.append(expr)
+
+    # --- must ---
+    must_terms = [t for t in model.must.terms if t]
+    if must_terms:
+        if model.must.mode == "ALL":
+            must_parts = [f"+{_quote_term(t)}" for t in must_terms]
+            parts.append(" ".join(must_parts))
+        else:
+            # ANY: хотя бы один из термов должен встретиться
+            inner = " OR ".join(_quote_term(t) for t in must_terms)
+            parts.append(f"+({inner})")
+
+    # --- exclude ---
+    exclude_terms = [t for t in model.exclude.terms if t]
+    if exclude_terms:
+        exclude_parts = [f"-{_quote_term(t)}" for t in exclude_terms]
+        parts.append(" ".join(exclude_parts))
+
+    query_text = " ".join(p for p in parts if p).strip()
+    return query_text or " "
 
 
 class YandexRetriever:
@@ -42,8 +102,8 @@ class YandexRetriever:
         if not api_key or api_key == "changeme" or not folder_id or folder_id == "changeme":
             return self._stub_retrieve(step)
 
-        # query_text — явный текст запроса (из theme_search_queries или legacy)
-        query_text = (step.query_text or " ").strip()
+        # Компиляция структурной модели запроса в строку для Yandex
+        query_text = _compile_query_model_to_string(step.query_model)
         if not query_text:
             return []
 
@@ -164,11 +224,8 @@ class YandexRetriever:
         """Заглушка при отсутствии настроек (для тестов и локальной разработки)."""
         import hashlib
 
-        seed = (
-            step.query_text
-            or " ".join(step.must_have)
-            or "empty"
-        )
+        # Для детерминированности заглушки используем скомпилированный запрос
+        seed = _compile_query_model_to_string(step.query_model) or "empty"
         seed_hash = hashlib.sha256(str(seed).encode("utf-8")).hexdigest()[:8]
         count = min(20 + (int(seed_hash, 16) % 41), step.max_results)
         domains = ["example.com", "news.example", "blog.example"]

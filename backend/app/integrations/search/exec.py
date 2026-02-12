@@ -2,7 +2,7 @@
 SearchExecutor: выполняет план поиска, нормализует URL, дедуплицирует, обрезает.
 
 TimeSlice применяется как фильтр по published_at в верхнем слое (Executor).
-Retriever не знает про время — только query_text, must_have, exclude.
+Retriever не знает про время — он получает только структурный query_model.
 """
 from app.integrations.search.ports import LinkRetrieverPort, RetrieverContext
 from app.integrations.search.schemas import (
@@ -13,13 +13,7 @@ from app.integrations.search.schemas import (
     StepResult,
     TimeSlice,
 )
-from app.integrations.search.utils import (
-    dedup_by_hash,
-    filter_by_exclude,
-    filter_by_must_have,
-    normalize_url,
-    url_hash,
-)
+from app.integrations.search.utils import dedup_by_hash, filter_by_exclude, normalize_url, url_hash
 
 
 def _apply_time_slice(
@@ -162,9 +156,32 @@ class SearchExecutor:
                     )
                 )
 
-            # Локальные фильтры шага: must_have, exclude
-            filtered = filter_by_must_have(normalized, step.must_have)
-            filtered = filter_by_exclude(filtered, step.exclude)
+            # Локальные фильтры шага: must/exclude из query_model
+            must_block = step.query_model.must
+            exclude_block = step.query_model.exclude
+
+            # must: ALL / ANY
+            if must_block.terms:
+                if must_block.mode == "ALL":
+                    # ALL: оставить только элементы, содержащие все фразы
+                    from app.integrations.search.utils import filter_by_must_have
+
+                    filtered = filter_by_must_have(normalized, must_block.terms)
+                else:
+                    # ANY: оставить элементы, содержащие хотя бы одну фразу
+                    from app.integrations.search.utils import _text_for_filtering
+
+                    tmp: list[LinkCandidate] = []
+                    for item in normalized:
+                        text = _text_for_filtering(item)
+                        if any(term.lower() in text for term in must_block.terms if term):
+                            tmp.append(item)
+                    filtered = tmp
+            else:
+                filtered = list(normalized)
+
+            # exclude: убрать элементы, содержащие любую фразу
+            filtered = filter_by_exclude(filtered, exclude_block.terms)
 
             # TimeSlice: фильтр по published_at (только в Executor)
             if time_slice is not None:
