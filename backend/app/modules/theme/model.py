@@ -14,7 +14,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -132,6 +132,11 @@ class Theme(Base):
         DateTime(timezone=True),
         nullable=True,
         comment="Дата и время мягкого удаления темы (soft delete)",
+    )
+
+    theme_sites = relationship(
+        "ThemeSite",
+        back_populates="theme",
     )
 
 

@@ -38,10 +38,12 @@ if config.config_file_name is not None:
 from app.db.base import Base
 
 # Импортируем все модели для autogenerate
-from app.modules.user.model import User  # noqa: F401
+from app.modules.user.model import User, UiState  # noqa: F401
 from app.modules.auth_token.model import AuthToken  # noqa: F401
 from app.modules.theme.model import Theme, ThemeSearchQuery  # noqa: F401
+from app.modules.site.models import Site, ThemeSite, UserSite  # noqa: F401
 from app.modules.source_link.model import SourceLink  # noqa: F401
+from app.modules.quanta.models import Quantum  # noqa: F401
 from app.modules.search_run.model import SearchRun  # noqa: F401
 from app.modules.digest.model import Digest, DigestSourceLink  # noqa: F401
 from app.modules.entity.model import Entity  # noqa: F401

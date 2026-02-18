@@ -3,6 +3,7 @@ import { SideNav } from './SideNav'
 import { TopBar } from './TopBar'
 import { TopicTabs } from '@/widgets/topic-tabs'
 import { UnauthorizedBridge } from '@/app/UnauthorizedBridge'
+import { useUiStateSave } from '@/features/user/lib/useUiStateSave'
 import { useUnsavedChangesWarning } from '@/shared/lib/useUnsavedChangesWarning'
 import './AppLayout.css'
 
@@ -10,6 +11,7 @@ export function AppLayout() {
   const location = useLocation()
   const showTopicTabs = location.pathname.startsWith('/topic')
 
+  useUiStateSave()
   useUnsavedChangesWarning()
 
   return (

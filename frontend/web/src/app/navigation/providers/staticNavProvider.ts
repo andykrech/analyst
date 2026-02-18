@@ -1,10 +1,13 @@
-import type { NavProvider } from '../types'
+import type { NavItem, NavProvider } from '../types'
 
-const items = [
+const SECTION_THEMES = 'themes'
+
+const items: NavItem[] = [
   {
     key: 'new-topic',
     label: 'Новая тема',
     path: '/topic/theme',
+    sectionId: SECTION_THEMES,
   },
 ]
 

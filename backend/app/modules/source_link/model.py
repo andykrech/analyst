@@ -25,6 +25,7 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.modules.digest.model import DigestSourceLink
     from app.modules.event.model import EventSourceLink
+    from app.modules.site.models import Site
 
 
 class SourceLink(Base):
@@ -109,6 +110,13 @@ class SourceLink(Base):
         nullable=False,
         index=True,
         comment="Домен источника (например, 'example.com') для фильтров и статистики.",
+    )
+    site_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("sites.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Ссылка на справочник sites для домена источника.",
     )
 
     # --- Метаданные источника ---
@@ -271,6 +279,8 @@ class SourceLink(Base):
         nullable=True,
         comment="Дата/время мягкого удаления (soft delete).",
     )
+
+    site: Mapped[Optional["Site"]] = relationship("Site", foreign_keys=[site_id])
 
     digest_source_links: Mapped[list["DigestSourceLink"]] = relationship(
         "DigestSourceLink",

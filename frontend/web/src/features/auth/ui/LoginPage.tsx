@@ -21,7 +21,7 @@ export function LoginPage() {
     try {
       const res = await authApi.login({ email, password })
       setAuth(res.access_token, res.email ?? email)
-      navigate('/topics/new', { replace: true })
+      navigate('/', { replace: true })
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : 'Произошла ошибка при входе'

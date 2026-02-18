@@ -7,6 +7,20 @@
   padding: 16px 0;
 }
 
+.side-nav__section {
+  padding: 0;
+}
+
+.side-nav__title {
+  margin: 0 0 8px 0;
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
 .side-nav__list {
   list-style: none;
   margin: 0;
@@ -17,14 +31,27 @@
   margin: 0;
 }
 
+.side-nav__item--muted {
+  padding: 10px 16px;
+  font-size: 14px;
+  color: #6c757d;
+}
+
 .side-nav__link {
   display: block;
+  width: 100%;
+  box-sizing: border-box;
   padding: 10px 16px;
   color: #333;
   text-decoration: none;
   font-size: 14px;
+  border: none;
   border-left: 3px solid transparent;
   margin-left: 0;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .side-nav__link:hover {
@@ -36,4 +63,8 @@
   background: #e9ecef;
   border-left-color: #007bff;
   font-weight: 500;
+}
+
+.side-nav__link--btn {
+  /* кнопки в списке выглядят как ссылки */
 }

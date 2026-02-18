@@ -50,24 +50,28 @@ async def get_current_user(
     """Извлечь текущего пользователя из Authorization: Bearer <token>. 401 при отсутствии или невалидном токене."""
     auth = request.headers.get("Authorization")
     if not auth or not auth.startswith("Bearer "):
+        logger.warning("401 get_current_user: Authorization header missing or not Bearer")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
         )
     token = auth[7:].strip()
     if not token:
+        logger.warning("401 get_current_user: Bearer token empty")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
         )
     try:
         payload = decode_access_token(token, get_settings())
-    except jwt.InvalidTokenError:
+    except jwt.InvalidTokenError as e:
+        logger.warning("401 get_current_user: Invalid or expired token (%s)", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
         )
     if payload.get("type") != "access":
+        logger.warning("401 get_current_user: Token type is not access")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token type",
@@ -75,12 +79,14 @@ async def get_current_user(
     try:
         user_id = uuid.UUID(payload["sub"])
     except (ValueError, KeyError):
+        logger.warning("401 get_current_user: Invalid sub in token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
         )
     user = await get_by_id(db, user_id)
     if not user or not user.is_active:
+        logger.warning("401 get_current_user: User not found or inactive (user_id=%s)", user_id)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or inactive",

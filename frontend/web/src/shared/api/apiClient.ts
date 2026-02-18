@@ -1,6 +1,11 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-interface FetchOptions extends RequestInit {
+export interface RequestOptions {
+  /** Не вызывать onUnauthorized при 401 (показать ошибку на месте, без редиректа на логин). */
+  skip401Redirect?: boolean
+}
+
+interface FetchOptions extends RequestInit, RequestOptions {
   params?: Record<string, string>
 }
 
@@ -34,7 +39,7 @@ async function fetchJson<T>(
   endpoint: string,
   options: FetchOptions = {},
 ): Promise<T> {
-  const { params, ...fetchOptions } = options
+  const { params, skip401Redirect, ...fetchOptions } = options
 
   // Формируем URL
   let url = `${API_BASE_URL}${endpoint}`
@@ -79,7 +84,7 @@ async function fetchJson<T>(
     throw error
   }
 
-  if (response.status === 401 && onUnauthorized) {
+  if (response.status === 401 && onUnauthorized && !skip401Redirect) {
     onUnauthorized()
   }
 
@@ -112,13 +117,22 @@ async function fetchJson<T>(
     throw new ApiError(errorMessage, response.status, response.statusText)
   }
 
-  // Если ответ пустой, возвращаем пустой объект
+  // 204 No Content или пустой ответ — не парсим JSON
+  if (response.status === 204) {
+    return {} as T
+  }
+
   const contentType = response.headers.get('content-type')
   if (!contentType || !contentType.includes('application/json')) {
     return {} as T
   }
 
-  return response.json()
+  const text = await response.text()
+  if (!text || text.trim() === '') {
+    return {} as T
+  }
+
+  return JSON.parse(text) as T
 }
 
 export const apiClient = {
@@ -136,6 +150,13 @@ export const apiClient = {
     fetchJson<T>(endpoint, {
       ...options,
       method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
+
+  patch: <T>(endpoint: string, data?: unknown, options?: FetchOptions) =>
+    fetchJson<T>(endpoint, {
+      ...options,
+      method: 'PATCH',
       body: data ? JSON.stringify(data) : undefined,
     }),
 

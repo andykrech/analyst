@@ -22,3 +22,9 @@ export interface LoginResponse {
 export interface VerifyResponse {
   message: string
 }
+
+export interface MeResponse {
+  id: string
+  email: string
+  roles?: string[]
+}

@@ -1,7 +1,8 @@
-import { apiClient } from '@/shared/api/apiClient'
+import { apiClient, type RequestOptions } from '@/shared/api/apiClient'
 import type {
   LoginRequest,
   LoginResponse,
+  MeResponse,
   RegisterRequest,
   RegisterResponse,
   VerifyResponse,
@@ -20,5 +21,10 @@ export const authApi = {
     return apiClient.get<VerifyResponse>('/api/v1/auth/verify', {
       params: { token },
     })
+  },
+
+  /** Проверка валидности токена (GET /me). При 401 не вызывать глобальный редирект. */
+  me: async (options?: RequestOptions): Promise<MeResponse> => {
+    return apiClient.get<MeResponse>('/api/v1/auth/me', options)
   },
 }

@@ -1,12 +1,31 @@
 import { create } from 'zustand'
 import type {
+  ThemeGetResponseDto,
+  ThemeGetTermDto,
+  ThemeListItemDto,
   ThemePrepareResponse,
   TermDTO,
   TermTranslationDto,
 } from '@/features/topic/api/themesApi'
+import type {
+  RecommendedSiteItem,
+  ThemeSiteDto,
+  ThemeSiteMode,
+  ThemeSiteStatus,
+  ThemeSiteUpdateRequest,
+} from '@/features/source/api/dto'
+import {
+  listThemeSources,
+  createThemeSource,
+  updateThemeSource,
+  deleteThemeSource,
+  recommendSources as recommendSourcesApi,
+} from '@/features/source/api/sourceApi'
+import { normalizeDomain } from '@/features/source/utils/normalizeDomain'
 import { themesApi } from '@/features/topic/api/themesApi'
 import type { Term } from '@/shared/types/term'
 import {
+  type GroupOp,
   type SavedQuery,
   type TermPools,
   type KeywordGroupData,
@@ -78,10 +97,36 @@ export interface SearchData {
   editingQueryIndex: 1 | 2 | 3 | null
 }
 
+export interface TopicSourcesEditorForm {
+  domain: string
+  mode: 'include' | 'exclude' | 'prefer'
+  status: 'active' | 'muted' | 'pending_review'
+  display_name: string
+  description: string
+  homepage_url: string
+  trust_score: string
+  quality_tier: string
+}
+
+export interface TopicSourcesData {
+  itemsById: Record<string, ThemeSiteDto>
+  order: string[]
+  selectedId: string | null
+  isLoading: boolean
+  error: string | null
+  editor: {
+    isOpen: boolean
+    mode: 'create' | 'edit'
+    themeSiteId: string | null
+    form: TopicSourcesEditorForm
+  }
+}
+
 export interface TopicData {
   theme: TopicTheme
   search: SearchData
   sources: unknown[]
+  siteSources: TopicSourcesData
   entities: Record<string, unknown>
   events: Record<string, unknown>
 }
@@ -97,6 +142,33 @@ const EMPTY_THEME: TopicTheme = {
   keywords: [],
   requiredWords: [],
   excludedWords: [],
+}
+
+const EMPTY_SITE_SOURCES_FORM: TopicSourcesEditorForm = {
+  domain: '',
+  mode: 'include',
+  status: 'active',
+  display_name: '',
+  description: '',
+  homepage_url: '',
+  trust_score: '',
+  quality_tier: '',
+}
+
+function getInitialSiteSources(): TopicSourcesData {
+  return {
+    itemsById: {},
+    order: [],
+    selectedId: null,
+    isLoading: false,
+    error: null,
+    editor: {
+      isOpen: false,
+      mode: 'create',
+      themeSiteId: null,
+      form: { ...EMPTY_SITE_SOURCES_FORM },
+    },
+  }
 }
 
 function getInitialSearch(): SearchData {
@@ -151,14 +223,24 @@ interface TopicStore {
   data: TopicData
   ui: TopicUi
   aiSuggest: { isLoading: boolean; error: string | null }
+  /** Рекомендация источников по теме (ИИ). */
+  sourcesRecommend: {
+    isLoading: boolean
+    error: string | null
+    lastResult: RecommendedSiteItem[] | null
+  }
+  /** Список тем для навигации (заполняется провайдером TopicsNavProvider). */
+  themesForNav: ThemeListItemDto[]
 
   setActiveTab: (tab: 'theme' | 'sources') => void
+  setThemesForNav: (themes: ThemeListItemDto[]) => void
   applyThemeSuggestions: (payload: ThemePrepareResponse) => void
   suggestThemeFromDescription: () => Promise<void>
   resetToEmptyDraft: () => void
   loadTopicIntoStore: (payload: {
     id?: string
     theme?: Partial<TopicTheme>
+    searchQueries?: [SavedQuery | null, SavedQuery | null, SavedQuery | null]
     sources?: unknown[]
     entities?: Record<string, unknown>
     events?: Record<string, unknown>
@@ -213,6 +295,33 @@ interface TopicStore {
   moveExcludeToUnused: (termId: string) => void
   /** Для теста конструктора: заполнить пулы и черновик при загрузке страницы (потом убрать). */
   seedSearchPoolsForTesting: () => void
+  /** Загрузить тему из ответа GET /themes/:id в стор. */
+  loadThemeFromApi: (response: ThemeGetResponseDto) => void
+  /** Сбросить статус на 'loaded' (например, после успешного сохранения). */
+  setStatusLoaded: () => void
+
+  // Site sources (theme_sites)
+  loadSources: () => Promise<void>
+  selectSource: (themeSiteId: string | null) => void
+  openCreateSource: () => void
+  openEditSource: (themeSiteId: string) => void
+  closeSourceEditor: () => void
+  setSourceEditorField: (
+    key: keyof TopicSourcesEditorForm,
+    value: string
+  ) => void
+  createSourceFromEditor: () => Promise<void>
+  saveSourceEditor: () => Promise<void>
+  muteSource: (themeSiteId: string) => Promise<void>
+  unmuteSource: (themeSiteId: string) => Promise<void>
+  updateSourceModeStatus: (
+    themeSiteId: string,
+    payload: { mode?: ThemeSiteMode; status?: ThemeSiteStatus }
+  ) => Promise<void>
+  clearSiteSourcesError: () => void
+  recommendSources: () => Promise<void>
+  clearSourcesRecommendError: () => void
+  addRecommendedSource: (item: RecommendedSiteItem) => Promise<void>
 }
 
 export const useTopicStore = create<TopicStore>((set) => ({
@@ -222,6 +331,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
     theme: { ...EMPTY_THEME },
     search: getInitialSearch(),
     sources: [],
+    siteSources: getInitialSiteSources(),
     entities: {},
     events: {},
   },
@@ -229,6 +339,10 @@ export const useTopicStore = create<TopicStore>((set) => ({
     activeTab: 'theme',
   },
   aiSuggest: { isLoading: false, error: null },
+  sourcesRecommend: { isLoading: false, error: null, lastResult: null },
+  themesForNav: [],
+
+  setThemesForNav: (themes) => set({ themesForNav: themes }),
 
   setActiveTab: (tab) =>
     set((s) => ({
@@ -244,11 +358,13 @@ export const useTopicStore = create<TopicStore>((set) => ({
         theme: { ...EMPTY_THEME },
         search: getInitialSearch(),
         sources: [],
+        siteSources: getInitialSiteSources(),
         entities: {},
         events: {},
       },
       ui: { activeTab: 'theme' },
       aiSuggest: { isLoading: false, error: null },
+      sourcesRecommend: { isLoading: false, error: null, lastResult: null },
     }),
 
   applyThemeSuggestions: (payload) =>
@@ -325,7 +441,6 @@ export const useTopicStore = create<TopicStore>((set) => ({
 
 
   loadTopicIntoStore: (payload) => {
-    // TODO: Replace with API call for load topic into store
     const toTerms = (v: unknown, hasAdditional: boolean): Term[] => {
       if (Array.isArray(v) && v.every((x) => typeof x === 'string')) {
         return termsFromStrings(v, hasAdditional)
@@ -347,6 +462,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
           data: {
             ...s.data,
             sources: payload.sources ?? s.data.sources,
+            siteSources: s.data.siteSources,
             entities: payload.entities ?? s.data.entities,
             events: payload.events ?? s.data.events,
           },
@@ -356,8 +472,8 @@ export const useTopicStore = create<TopicStore>((set) => ({
       const langs = t.languages as string[] | undefined
       const hasAdditional = (langs?.slice(1)?.length ?? 0) > 0
       const keywordTerms = toTerms(t.keywords, hasAdditional)
-      const mustTerms = toTerms(t.requiredWords, hasAdditional)
-      const excludeTerms = toTerms(t.excludedWords, hasAdditional)
+      const mustTerms = toTerms(t.requiredWords ?? t.must_have, hasAdditional)
+      const excludeTerms = toTerms(t.excludedWords ?? t.exclude, hasAdditional)
       const theme: TopicTheme = {
         ...EMPTY_THEME,
         ...payload.theme,
@@ -370,6 +486,11 @@ export const useTopicStore = create<TopicStore>((set) => ({
         keywordTerms.length > 0 || mustTerms.length > 0 || excludeTerms.length > 0
           ? getDefaultDraft(pools)
           : s.data.search.queries[0]
+      const savedSlots = payload.searchQueries ?? [
+        s.data.search.queries[1],
+        s.data.search.queries[2],
+        s.data.search.queries[3],
+      ]
       return {
         ...s,
         activeTopicId: payload.id ?? null,
@@ -384,20 +505,69 @@ export const useTopicStore = create<TopicStore>((set) => ({
             excludeTerms,
             queries: [
               draft,
-              s.data.search.queries[1],
-              s.data.search.queries[2],
-              s.data.search.queries[3],
+              savedSlots[0] ?? null,
+              savedSlots[1] ?? null,
+              savedSlots[2] ?? null,
             ],
             isEditingDraft: false,
             editingQueryIndex: null,
           },
           sources: payload.sources ?? s.data.sources,
+          siteSources: s.data.siteSources,
           entities: payload.entities ?? s.data.entities,
           events: payload.events ?? s.data.events,
         },
       }
     })
   },
+
+  loadThemeFromApi: (response) => {
+    const theme = response.theme
+    const additionalLangs = theme.languages?.slice(1) ?? []
+    const toTerm = (dto: ThemeGetTermDto): Term => {
+      const translations = dto.translations ?? {}
+      const hasAllTranslations =
+        additionalLangs.length === 0 ||
+        additionalLangs.every(
+          (lang) => typeof translations[lang] === 'string' && translations[lang].trim().length > 0
+        )
+      return {
+        id: dto.id,
+        text: dto.text,
+        context: dto.context ?? '',
+        translations,
+        needsTranslation: !hasAllTranslations,
+      }
+    }
+    const searchQueries: [SavedQuery | null, SavedQuery | null, SavedQuery | null] = [
+      null,
+      null,
+      null,
+    ]
+    for (const q of response.search_queries) {
+      if (q.order_index >= 1 && q.order_index <= 3 && q.query_model) {
+        searchQueries[q.order_index - 1] = {
+          keywords: q.query_model.keywords ?? { groups: [], connectors: [] },
+          must: q.query_model.must ?? { mode: 'ALL', termIds: [] },
+          exclude: q.query_model.exclude ?? { termIds: [] },
+        }
+      }
+    }
+    useTopicStore.getState().loadTopicIntoStore({
+      id: theme.id,
+      theme: {
+        title: theme.title,
+        description: theme.description,
+        languages: theme.languages ?? [],
+        keywords: theme.keywords.map(toTerm),
+        requiredWords: theme.must_have.map(toTerm),
+        excludedWords: theme.exclude.map(toTerm),
+      },
+      searchQueries,
+    })
+  },
+
+  setStatusLoaded: () => set((s) => ({ ...s, status: 'loaded' as const })),
 
   setThemeTitle: (title) =>
     set((s) => ({
@@ -702,9 +872,10 @@ export const useTopicStore = create<TopicStore>((set) => ({
       const search = s.data.search
       const draft = search.queries[0]
       let targetIndex: 1 | 2 | 3
-      const wasEditingSaved = search.editingQueryIndex !== null
-      if (wasEditingSaved) {
-        targetIndex = search.editingQueryIndex
+      const idx = search.editingQueryIndex
+      const wasEditingSaved = idx !== null
+      if (wasEditingSaved && idx != null) {
+        targetIndex = idx
       } else {
         const firstFree = ([1, 2, 3] as const).find((i) => search.queries[i] === null)
         if (firstFree === undefined) return s
@@ -1056,7 +1227,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
         termIds: [],
       }
       const groups = [...draft.keywords.groups, newGroup]
-      const connectors =
+      const connectors: GroupOp[] =
         draft.keywords.connectors.length === groups.length - 1
           ? [...draft.keywords.connectors, 'AND']
           : [...draft.keywords.connectors, 'AND']
@@ -1246,6 +1417,558 @@ export const useTopicStore = create<TopicStore>((set) => ({
         },
       }
     }),
+
+  loadSources: async () => {
+    const state = useTopicStore.getState()
+    const themeId = state.activeTopicId
+    if (!themeId) return
+
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        siteSources: {
+          ...s.data.siteSources,
+          isLoading: true,
+          error: null,
+        },
+      },
+    }))
+
+    try {
+      const list = await listThemeSources(themeId)
+      const sorted = [...list].sort((a, b) => {
+        const na =
+          (a.site.effective_display_name ?? a.site.domain ?? '').toLowerCase()
+        const nb =
+          (b.site.effective_display_name ?? b.site.domain ?? '').toLowerCase()
+        return na.localeCompare(nb)
+      })
+      const itemsById: Record<string, ThemeSiteDto> = {}
+      const order: string[] = []
+      for (const dto of sorted) {
+        itemsById[dto.id] = dto
+        order.push(dto.id)
+      }
+
+      const prev = useTopicStore.getState().data.siteSources
+      const selectedId =
+        prev.selectedId && itemsById[prev.selectedId]
+          ? prev.selectedId
+          : order[0] ?? null
+
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          siteSources: {
+            ...s.data.siteSources,
+            itemsById,
+            order,
+            selectedId,
+            isLoading: false,
+            error: null,
+          },
+        },
+      }))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Ошибка загрузки источников'
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          siteSources: {
+            ...s.data.siteSources,
+            isLoading: false,
+            error: msg,
+          },
+        },
+      }))
+    }
+  },
+
+  selectSource: (themeSiteId) =>
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        siteSources: {
+          ...s.data.siteSources,
+          selectedId: themeSiteId,
+        },
+      },
+    })),
+
+  openCreateSource: () =>
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        siteSources: {
+          ...s.data.siteSources,
+          error: null,
+          editor: {
+            isOpen: true,
+            mode: 'create',
+            themeSiteId: null,
+            form: { ...EMPTY_SITE_SOURCES_FORM },
+          },
+        },
+      },
+    })),
+
+  openEditSource: (themeSiteId) => {
+    const state = useTopicStore.getState()
+    const dto = state.data.siteSources.itemsById[themeSiteId]
+    if (!dto) return
+
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        siteSources: {
+          ...s.data.siteSources,
+          error: null,
+          editor: {
+            isOpen: true,
+            mode: 'edit',
+            themeSiteId,
+            form: {
+              domain: dto.site.domain ?? '',
+              mode: dto.mode,
+              status: dto.status,
+              display_name: dto.site.effective_display_name ?? '',
+              description: dto.site.effective_description ?? '',
+              homepage_url: dto.site.effective_homepage_url ?? '',
+              trust_score:
+                dto.site.effective_trust_score != null
+                  ? String(dto.site.effective_trust_score)
+                  : '',
+              quality_tier:
+                dto.site.effective_quality_tier != null
+                  ? String(dto.site.effective_quality_tier)
+                  : '',
+            },
+          },
+        },
+      },
+    }))
+  },
+
+  closeSourceEditor: () =>
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        siteSources: {
+          ...s.data.siteSources,
+          editor: {
+            ...s.data.siteSources.editor,
+            isOpen: false,
+          },
+        },
+      },
+    })),
+
+  setSourceEditorField: (key, value) =>
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        siteSources: {
+          ...s.data.siteSources,
+          editor: {
+            ...s.data.siteSources.editor,
+            form: {
+              ...s.data.siteSources.editor.form,
+              [key]: value,
+            },
+          },
+        },
+      },
+    })),
+
+  createSourceFromEditor: async () => {
+    const state = useTopicStore.getState()
+    const themeId = state.activeTopicId
+    const editor = state.data.siteSources.editor
+    const items = state.data.siteSources.itemsById
+
+    if (!themeId) return
+
+    const norm = normalizeDomain(editor.form.domain)
+    if (!norm) {
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          siteSources: {
+            ...s.data.siteSources,
+            error: 'Некорректный домен или URL',
+          },
+        },
+      }))
+      return
+    }
+
+    for (const dto of Object.values(items)) {
+      if (dto.status === 'muted') continue
+      const existingNorm = normalizeDomain(dto.site.domain)
+      if (existingNorm && existingNorm === norm) {
+        set((s) => ({
+          ...s,
+          data: {
+            ...s.data,
+            siteSources: {
+              ...s.data.siteSources,
+              error: 'Этот источник уже добавлен в тему',
+            },
+          },
+        }))
+        return
+      }
+    }
+
+    try {
+      const payload = {
+        domain: editor.form.domain.trim(),
+        mode: editor.form.mode,
+        status: editor.form.status,
+        display_name: editor.form.display_name.trim() || undefined,
+        description: editor.form.description.trim() || undefined,
+        homepage_url: editor.form.homepage_url.trim() || undefined,
+        trust_score: parseFloat(editor.form.trust_score) || undefined,
+        quality_tier: parseInt(editor.form.quality_tier, 10) || undefined,
+      }
+      const dto = await createThemeSource(themeId, payload)
+
+      set((s) => {
+        const by = { ...s.data.siteSources.itemsById, [dto.id]: dto }
+        const order = s.data.siteSources.order.includes(dto.id)
+          ? s.data.siteSources.order
+          : [...s.data.siteSources.order, dto.id].sort((ia, ib) => {
+              const a = by[ia]?.site.effective_display_name ?? by[ia]?.site.domain ?? ''
+              const b = by[ib]?.site.effective_display_name ?? by[ib]?.site.domain ?? ''
+              return a.localeCompare(b)
+            })
+        return {
+          ...s,
+          data: {
+            ...s.data,
+            siteSources: {
+              ...s.data.siteSources,
+              itemsById: by,
+              order,
+              selectedId: dto.id,
+              error: null,
+              editor: { ...s.data.siteSources.editor, isOpen: false },
+            },
+          },
+        }
+      })
+    } catch (e) {
+      const apiErr = e as { status?: number; message?: string }
+      const is409 = apiErr?.status === 409
+      const msg = is409
+        ? 'Этот источник уже добавлен в тему'
+        : (apiErr.message ?? 'Ошибка при добавлении источника')
+
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          siteSources: {
+            ...s.data.siteSources,
+            error: msg,
+          },
+        },
+      }))
+    }
+  },
+
+  saveSourceEditor: async () => {
+    const state = useTopicStore.getState()
+    const themeId = state.activeTopicId
+    const editor = state.data.siteSources.editor
+    const dto = editor.themeSiteId
+      ? state.data.siteSources.itemsById[editor.themeSiteId]
+      : null
+
+    if (!themeId || !dto) return
+
+    try {
+      const payload: ThemeSiteUpdateRequest = {
+        mode: editor.form.mode,
+        status: editor.form.status,
+        display_name: editor.form.display_name.trim() || undefined,
+        description: editor.form.description.trim() || undefined,
+        homepage_url: editor.form.homepage_url.trim() || undefined,
+        trust_score: parseFloat(editor.form.trust_score) || undefined,
+        quality_tier: parseInt(editor.form.quality_tier, 10) || undefined,
+      }
+      const updated = await updateThemeSource(themeId, dto.site_id, payload)
+
+      set((s) => {
+        const by = { ...s.data.siteSources.itemsById, [updated.id]: updated }
+        return {
+          ...s,
+          data: {
+            ...s.data,
+            siteSources: {
+              ...s.data.siteSources,
+              itemsById: by,
+              error: null,
+              editor: { ...s.data.siteSources.editor, isOpen: false },
+            },
+          },
+        }
+      })
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : 'Ошибка при сохранении'
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          siteSources: {
+            ...s.data.siteSources,
+            error: msg,
+          },
+        },
+      }))
+    }
+  },
+
+  muteSource: async (themeSiteId) => {
+    const state = useTopicStore.getState()
+    const themeId = state.activeTopicId
+    const dto = state.data.siteSources.itemsById[themeSiteId]
+    if (!themeId || !dto) return
+
+    try {
+      await deleteThemeSource(themeId, dto.site_id)
+      const wasSelected = useTopicStore.getState().data.siteSources.selectedId === themeSiteId
+      await useTopicStore.getState().loadSources()
+      if (wasSelected) {
+        set((s) => ({
+          ...s,
+          data: {
+            ...s.data,
+            siteSources: {
+              ...s.data.siteSources,
+              selectedId: null,
+            },
+          },
+        }))
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Ошибка при выключении'
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          siteSources: {
+            ...s.data.siteSources,
+            error: msg,
+          },
+        },
+      }))
+    }
+  },
+
+  unmuteSource: async (themeSiteId) => {
+    const state = useTopicStore.getState()
+    const themeId = state.activeTopicId
+    const dto = state.data.siteSources.itemsById[themeSiteId]
+    if (!themeId || !dto) return
+
+    try {
+      const updated = await updateThemeSource(themeId, dto.site_id, {
+        status: 'active',
+      })
+      set((s) => {
+        const by = { ...s.data.siteSources.itemsById, [updated.id]: updated }
+        return {
+          ...s,
+          data: {
+            ...s.data,
+            siteSources: {
+              ...s.data.siteSources,
+              itemsById: by,
+              error: null,
+            },
+          },
+        }
+      })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Ошибка при включении'
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          siteSources: {
+            ...s.data.siteSources,
+            error: msg,
+          },
+        },
+      }))
+    }
+  },
+
+  updateSourceModeStatus: async (themeSiteId, payload) => {
+    const state = useTopicStore.getState()
+    const themeId = state.activeTopicId
+    const dto = state.data.siteSources.itemsById[themeSiteId]
+    if (!themeId || !dto) return
+    const patch: ThemeSiteUpdateRequest = {}
+    if (payload.mode !== undefined) patch.mode = payload.mode
+    if (payload.status !== undefined) patch.status = payload.status
+    if (Object.keys(patch).length === 0) return
+    try {
+      const updated = await updateThemeSource(themeId, dto.site_id, patch)
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          siteSources: {
+            ...s.data.siteSources,
+            itemsById: { ...s.data.siteSources.itemsById, [updated.id]: updated },
+            error: null,
+          },
+        },
+      }))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Ошибка при обновлении'
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          siteSources: { ...s.data.siteSources, error: msg },
+        },
+      }))
+    }
+  },
+
+  clearSiteSourcesError: () =>
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        siteSources: {
+          ...s.data.siteSources,
+          error: null,
+        },
+      },
+    })),
+
+  recommendSources: async () => {
+    const state = useTopicStore.getState()
+    const themeId = state.activeTopicId
+    const theme = state.data.theme
+    if (!themeId) return
+    const title = theme.title?.trim() ?? ''
+    const description = theme.description?.trim() ?? ''
+    const keywords = theme.keywords?.map((t) => t.text) ?? []
+    if (!title && !description) {
+      set((s) => ({
+        ...s,
+        sourcesRecommend: {
+          ...s.sourcesRecommend,
+          error: 'Укажите название или описание темы на вкладке «Тема»',
+        },
+      }))
+      return
+    }
+    set((s) => ({
+      ...s,
+      sourcesRecommend: { isLoading: true, error: null, lastResult: null },
+    }))
+    try {
+      const response = await recommendSourcesApi(themeId, {
+        title: title || undefined,
+        description: description || undefined,
+        keywords: keywords.length > 0 ? keywords : undefined,
+      })
+      set((s) => ({
+        ...s,
+        sourcesRecommend: {
+          isLoading: false,
+          error: null,
+          lastResult: response.result ?? [],
+        },
+      }))
+    } catch (e) {
+      const message =
+        e instanceof Error ? e.message : 'Ошибка при получении рекомендаций'
+      set((s) => ({
+        ...s,
+        sourcesRecommend: {
+          isLoading: false,
+          error: message,
+          lastResult: null,
+        },
+      }))
+    }
+  },
+
+  clearSourcesRecommendError: () =>
+    set((s) => ({
+      ...s,
+      sourcesRecommend: {
+        ...s.sourcesRecommend,
+        error: null,
+      },
+    })),
+
+  addRecommendedSource: async (item) => {
+    const state = useTopicStore.getState()
+    const themeId = state.activeTopicId
+    if (!themeId) return
+    const items = state.data.siteSources.itemsById
+    const norm = normalizeDomain(item.domain)
+    if (!norm) return
+    for (const dto of Object.values(items)) {
+      if (dto.status === 'muted') continue
+      const existingNorm = normalizeDomain(dto.site.domain)
+      if (existingNorm === norm) return
+    }
+    try {
+      const payload = {
+        domain: item.domain.trim(),
+        mode: 'include' as const,
+        status: 'active' as const,
+        source: 'ai_recommended' as const,
+        display_name: item.display_name?.trim() || undefined,
+        reason: item.reason?.trim() || undefined,
+      }
+      const dto = await createThemeSource(themeId, payload)
+      set((s) => {
+        const by = { ...s.data.siteSources.itemsById, [dto.id]: dto }
+        const order = s.data.siteSources.order.includes(dto.id)
+          ? s.data.siteSources.order
+          : [...s.data.siteSources.order, dto.id].sort((ia, ib) => {
+              const a = by[ia]?.site.effective_display_name ?? by[ia]?.site.domain ?? ''
+              const b = by[ib]?.site.effective_display_name ?? by[ib]?.site.domain ?? ''
+              return a.localeCompare(b)
+            })
+        return {
+          ...s,
+          data: {
+            ...s.data,
+            siteSources: {
+              ...s.data.siteSources,
+              itemsById: by,
+              order,
+              selectedId: dto.id,
+              error: null,
+            },
+          },
+        }
+      })
+    } catch {
+      // 409 или другая ошибка — не перезаписываем sourcesRecommend
+    }
+  },
 
   seedSearchPoolsForTesting: () =>
     set((s) => {

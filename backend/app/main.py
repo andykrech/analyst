@@ -11,7 +11,10 @@ from app.integrations.llm import LLMService
 from app.integrations.search import SearchService
 from app.integrations.search.router import router as search_router
 from app.modules.auth.router import router as auth_router
+from app.modules.quanta.router import router as quanta_router
+from app.modules.site.router import router as site_router
 from app.modules.theme.router import router as theme_router
+from app.modules.user.router import router as user_router
 
 # Настраиваем логирование при старте приложения
 setup_logging()
@@ -56,8 +59,11 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(site_router)
 app.include_router(theme_router)
+app.include_router(user_router)
 app.include_router(search_router)
+app.include_router(quanta_router)
 
 
 @app.get("/api", response_class=PlainTextResponse)

@@ -1,10 +1,17 @@
-.topic-tabs {
+.topic-tabs-bar {
   flex-shrink: 0;
   display: flex;
-  gap: 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   padding: 8px 24px 0;
   border-bottom: 1px solid #e9ecef;
   background: #fff;
+}
+
+.topic-tabs {
+  display: flex;
+  gap: 4px;
 }
 
 .topic-tabs__link {
@@ -24,4 +31,42 @@
 .topic-tabs__link--active {
   color: #007bff;
   border-bottom-color: #007bff;
+}
+
+.topic-tabs__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topic-tabs__message {
+  font-size: 13px;
+}
+
+.topic-tabs__message--success {
+  color: #198754;
+}
+
+.topic-tabs__message--error {
+  color: #dc3545;
+}
+
+.topic-tabs__save-btn {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  background: #007bff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.topic-tabs__save-btn:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.topic-tabs__save-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }

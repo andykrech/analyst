@@ -4,10 +4,11 @@ import './index.css'
 import { App } from './app/App.tsx'
 import { useAuthStore } from '@/features/auth/auth.store'
 import { setAuthTokenGetter } from '@/shared/api/apiClient'
-import { NavigationRegistry, staticNavProvider } from '@/app/navigation'
+import { NavigationRegistry, staticNavProvider, topicsNavProvider } from '@/app/navigation'
 
 setAuthTokenGetter(() => useAuthStore.getState().accessToken)
 NavigationRegistry.register(staticNavProvider)
+NavigationRegistry.register(topicsNavProvider)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

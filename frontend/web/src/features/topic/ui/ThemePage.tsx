@@ -355,11 +355,6 @@ export function ThemePage() {
   const startEditingQuery = useTopicStore((s) => s.startEditingQuery)
   const deleteSavedQuery = useTopicStore((s) => s.deleteSavedQuery)
   const updateSearchTermInPool = useTopicStore((s) => s.updateSearchTermInPool)
-  const seedSearchPoolsForTesting = useTopicStore((s) => s.seedSearchPoolsForTesting)
-
-  useEffect(() => {
-    seedSearchPoolsForTesting()
-  }, [seedSearchPoolsForTesting])
 
   const draft = search.queries[0]
   const pools: TermPools = {

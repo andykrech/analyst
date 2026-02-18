@@ -1,26 +1,45 @@
 """
-Роутер тем: подготовка по сырому вводу (theme.init), CRUD (позже).
+Роутер тем: подготовка по сырому вводу (theme.init), сохранение темы и запросов, CRUD.
 """
 import json
 import logging
+import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.session import get_db
 from app.integrations.llm import LLMService, get_llm_service
 from app.integrations.prompts import PromptService, get_prompt_service
+from app.modules.auth.router import get_current_user
 from app.modules.theme.schemas import (
+    TermDTO,
     TermTranslateIn,
     TermTranslationOut,
     TermsTranslateLLMMeta,
     TermsTranslateRequest,
     TermsTranslateResponse,
+    ThemeGetOut,
+    ThemeGetResponse,
+    ThemeGetTermOut,
     ThemePrepareLLMMeta,
     ThemePrepareRequest,
     ThemePrepareResponse,
     ThemePrepareResult,
-    TermDTO,
+    ThemeListItem,
+    ThemeListResponse,
+    ThemeSaveRequest,
+    ThemeSaveResponse,
+    ThemeSearchQueryOut,
 )
+from app.modules.theme.service import (
+    create_theme_with_queries,
+    get_theme_with_queries,
+    list_themes,
+    update_theme_with_queries,
+)
+from app.modules.user.model import User
 
 router = APIRouter(prefix="/api/v1/themes", tags=["themes"])
 logger = logging.getLogger(__name__)
@@ -340,3 +359,128 @@ async def translate_terms(
     )
 
     return TermsTranslateResponse(translations=ordered_translations, llm=llm_meta)
+
+
+# --- Список тем пользователя ---
+
+
+@router.get("", response_model=ThemeListResponse)
+async def list_themes_endpoint(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ThemeListResponse:
+    """Список тем текущего пользователя (id, title), по убыванию даты обновления."""
+    themes = await list_themes(db, current_user.id)
+    return ThemeListResponse(
+        themes=[
+            ThemeListItem(id=str(t.id), title=t.title or "")
+            for t in themes
+        ],
+    )
+
+
+# --- Загрузка темы по id ---
+
+
+def _theme_row_to_get_out(theme: Any) -> ThemeGetOut:
+    """Собрать ThemeGetOut из строки Theme (keywords, must_have, exclude — списки dict)."""
+    def terms_out(items: list) -> list[ThemeGetTermOut]:
+        if not items:
+            return []
+        return [
+            ThemeGetTermOut(
+                id=str(t.get("id", "")),
+                text=str(t.get("text", "")),
+                context=str(t.get("context", "")),
+                translations=dict(t.get("translations") or {}),
+            )
+            for t in items
+        ]
+
+    return ThemeGetOut(
+        id=str(theme.id),
+        title=theme.title or "",
+        description=theme.description or "",
+        keywords=terms_out(theme.keywords or []),
+        must_have=terms_out(theme.must_have or []),
+        exclude=terms_out(theme.exclude or []),
+        languages=list(theme.languages or []),
+    )
+
+
+@router.get("/{theme_id}", response_model=ThemeGetResponse)
+async def get_theme(
+    theme_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ThemeGetResponse:
+    """
+    Получить тему и её поисковые запросы по id.
+    Тема должна принадлежать текущему пользователю.
+    """
+    try:
+        tid = uuid.UUID(theme_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверный формат theme_id (ожидается UUID)",
+        )
+    theme, queries = await get_theme_with_queries(db, tid, current_user.id)
+    if not theme:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Тема не найдена или недоступна",
+        )
+    return ThemeGetResponse(
+        theme=_theme_row_to_get_out(theme),
+        search_queries=[
+            ThemeSearchQueryOut(order_index=q.order_index, query_model=q.query_model or {})
+            for q in queries
+        ],
+    )
+
+
+# --- Сохранение темы и поисковых запросов (общее имя: позже — источники, наборы ссылок и т.д.) ---
+
+
+@router.post("", response_model=ThemeSaveResponse, status_code=status.HTTP_201_CREATED)
+async def save_theme_create(
+    body: ThemeSaveRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ThemeSaveResponse:
+    """
+    Создать тему и её поисковые запросы.
+    Валидация строгая: все termIds в запросах должны ссылаться на id в пулах темы.
+    """
+    theme = await create_theme_with_queries(db, current_user.id, body)
+    logger.info("Theme created theme_id=%s user_id=%s", theme.id, current_user.id)
+    return ThemeSaveResponse(id=str(theme.id), message="created")
+
+
+@router.put("/{theme_id}", response_model=ThemeSaveResponse)
+async def save_theme_update(
+    theme_id: str,
+    body: ThemeSaveRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ThemeSaveResponse:
+    """
+    Обновить тему и заменить поисковые запросы.
+    Тема должна принадлежать текущему пользователю. Валидация та же, что при создании.
+    """
+    try:
+        tid = uuid.UUID(theme_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверный формат theme_id (ожидается UUID)",
+        )
+    theme = await update_theme_with_queries(db, tid, current_user.id, body)
+    if not theme:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Тема не найдена или недоступна",
+        )
+    logger.info("Theme updated theme_id=%s user_id=%s", theme.id, current_user.id)
+    return ThemeSaveResponse(id=str(theme.id), message="ok")
