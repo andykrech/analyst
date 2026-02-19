@@ -1,5 +1,5 @@
 """
-Тест POST /api/v1/search/collect: структура ответа, нормализация URL, дедупликация.
+Тест POST /api/v1/search/collect: структура ответа (кванты), дедупликация.
 """
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -20,8 +20,8 @@ def app_with_search():
 
 
 @pytest.mark.asyncio
-async def test_search_collect_structure_and_normalization(app_with_search):
-    """Проверка структуры ответа, normalized_url, url_hash, отсутствие дублей."""
+async def test_search_collect_structure_and_dedup(app_with_search):
+    """Проверка структуры ответа (кванты), обязательные поля, отсутствие дублей по dedup_key."""
     transport = ASGITransport(app=app_with_search)
     payload = {
         "keywords": ["fastapi", "postgres"],
@@ -50,18 +50,21 @@ async def test_search_collect_structure_and_normalization(app_with_search):
 
     assert data["total_returned"] <= 20
 
-    # У каждого item заполнены normalized_url и url_hash
-    seen_hashes: set[str] = set()
+    # Каждый item — квант: theme_id, entity_kind, title, summary_text, verification_url, source_system
+    seen_urls: set[str] = set()
     for item in items:
-        assert "normalized_url" in item
-        assert item["normalized_url"] is not None
-        assert item["normalized_url"] != ""
-
-        assert "url_hash" in item
-        assert item["url_hash"] is not None
-        assert item["url_hash"] != ""
-
-        # Нет дублей по url_hash
-        h = item["url_hash"]
-        assert h not in seen_hashes
-        seen_hashes.add(h)
+        assert "theme_id" in item
+        assert "entity_kind" in item
+        assert item["entity_kind"] == "webpage"
+        assert "title" in item
+        assert item["title"]
+        assert "summary_text" in item
+        assert item["summary_text"]
+        assert "verification_url" in item
+        url = item["verification_url"]
+        assert url
+        assert "source_system" in item
+        assert item["source_system"] == "yandex"
+        # Нет дублей по verification_url (дедуп в executor по dedup_key/canonical_url)
+        assert url not in seen_urls
+        seen_urls.add(url)

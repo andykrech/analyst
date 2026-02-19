@@ -122,11 +122,14 @@ class Settings:
     DEEPSEEK_PRICE_COMPLETION_PER_1M: Decimal = _decimal("DEEPSEEK_PRICE_COMPLETION_PER_1M", 0)
     DEEPSEEK_CURRENCY: str = _str("DEEPSEEK_CURRENCY", "USD")
 
-    # Search: retriever'ы по умолчанию, лимиты
-    SEARCH_DEFAULT_RETRIEVERS: list[str] = ["yandex"]
-    SEARCH_MAX_RESULTS_PER_RETRIEVER: dict[str, int] = {"yandex": 50}
+    # Search: retriever'ы по умолчанию, лимиты (сейчас — OpenAlex публикации)
+    SEARCH_DEFAULT_RETRIEVERS: list[str] = ["openalex"]
+    SEARCH_MAX_RESULTS_PER_RETRIEVER: dict[str, int] = {"openalex": 50}
     SEARCH_DEFAULT_TIME_WINDOW_DAYS: int = _int("SEARCH_DEFAULT_TIME_WINDOW_DAYS", 7)
     SEARCH_DEFAULT_TARGET_LINKS: int = _int("SEARCH_DEFAULT_TARGET_LINKS", 50)
+
+    # OpenAlex API (публикации)
+    OPENALEX_API_KEY: str = _str("OPENALEX_API_KEY", "")
 
     # Yandex Search API v2 (gRPC)
     YANDEX_API_KEY: str = _str("YANDEX_API_KEY", "changeme")

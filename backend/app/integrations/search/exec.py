@@ -1,64 +1,57 @@
 """
-SearchExecutor: выполняет план поиска, нормализует URL, дедуплицирует, обрезает.
+SearchExecutor: выполняет план поиска, применяет MUST/EXCLUDE, TimeSlice, дедуп, обрезку.
 
-TimeSlice применяется как фильтр по published_at в верхнем слое (Executor).
-Retriever не знает про время — он получает только структурный query_model.
+Работает с квантами (QuantumCreate). TimeSlice — фильтр по date_at.
 """
-from app.integrations.search.ports import LinkRetrieverPort, RetrieverContext
+from app.integrations.search.ports import RetrieverContext, RetrieverPort
 from app.integrations.search.schemas import (
-    LinkCandidate,
-    LinkCollectResult,
+    QuantumCollectResult,
     QueryStep,
     SearchPlan,
     StepResult,
     TimeSlice,
 )
-from app.integrations.search.utils import dedup_by_hash, filter_by_exclude, normalize_url, url_hash
+from app.integrations.search.utils import (
+    dedup_quanta,
+    filter_by_exclude_quanta,
+    filter_by_must_have_quanta,
+)
+from app.modules.quanta.schemas import QuantumCreate
 
 
-def _apply_time_slice(
-    items: list[LinkCandidate],
+def _apply_time_slice_quanta(
+    items: list[QuantumCreate],
     time_slice: TimeSlice,
-) -> list[LinkCandidate]:
+) -> list[QuantumCreate]:
     """
-    Фильтр по published_at: оставить только в [published_from, published_to].
-    Если published_at is None — не отбрасывать (MVP), добавить date_unknown в meta.
+    Фильтр по date_at: оставить только в [published_from, published_to].
+    Если date_at is None — не отбрасывать (MVP).
     """
-    result: list[LinkCandidate] = []
-    for item in items:
-        if item.published_at is not None:
-            if time_slice.published_from <= item.published_at <= time_slice.published_to:
-                result.append(item)
-            # иначе отбрасываем
-        else:
-            # MVP: не отбрасываем, помечаем
-            meta = dict(item.provider_meta)
-            meta["date_unknown"] = True
-            result.append(
-                LinkCandidate(
-                    url=item.url,
-                    title=item.title,
-                    snippet=item.snippet,
-                    published_at=None,
-                    provider=item.provider,
-                    rank=item.rank,
-                    provider_meta=meta,
-                    normalized_url=item.normalized_url,
-                    url_hash=item.url_hash,
-                )
-            )
+    result: list[QuantumCreate] = []
+    for q in items:
+        if q.date_at is None:
+            result.append(q)
+            continue
+        if time_slice.published_from <= q.date_at <= time_slice.published_to:
+            result.append(q)
     return result
+
+
+def _quantum_dedup_key_for_seen(q: QuantumCreate) -> tuple[str, str]:
+    """Ключ для seen: (theme_id, dedup_key)."""
+    from app.integrations.search.utils import _quantum_dedup_key
+    return (q.theme_id, _quantum_dedup_key(q))
 
 
 class SearchExecutor:
     """
-    Исполнитель плана поиска: вызывает retriever'ы, нормализует URL,
-    применяет must_have, exclude, TimeSlice, дедуплицирует, обрезает.
+    Исполнитель плана поиска: вызывает retriever'ы (кванты),
+    применяет MUST/EXCLUDE, TimeSlice по date_at, дедуплицирует, обрезает.
     """
 
     def __init__(
         self,
-        registry: dict[str, LinkRetrieverPort],
+        registry: dict[str, RetrieverPort],
         settings,
     ) -> None:
         self._registry = registry
@@ -70,10 +63,10 @@ class SearchExecutor:
         time_slice: TimeSlice | None,
         global_target_links: int,
         ctx: RetrieverContext,
-    ) -> LinkCollectResult:
-        all_items: list[LinkCandidate] = []
+    ) -> QuantumCollectResult:
+        all_items: list[QuantumCreate] = []
         step_results: list[StepResult] = []
-        seen_hashes: set[str] = set()
+        seen_keys: set[tuple[str, str]] = set()
 
         for step in plan.steps:
             if not isinstance(step, QueryStep):
@@ -88,7 +81,6 @@ class SearchExecutor:
                 )
                 continue
 
-            # Досрочный выход при достижении лимита
             if len(all_items) >= global_target_links:
                 step_results.append(
                     StepResult(
@@ -137,67 +129,33 @@ class SearchExecutor:
                 )
                 continue
 
-            # Нормализация: заполнить normalized_url и url_hash
-            normalized: list[LinkCandidate] = []
-            for item in raw_items:
-                norm_url = normalize_url(item.url)
-                h = url_hash(norm_url)
-                normalized.append(
-                    LinkCandidate(
-                        url=item.url,
-                        title=item.title,
-                        snippet=item.snippet,
-                        published_at=item.published_at,
-                        provider=item.provider,
-                        rank=item.rank,
-                        provider_meta=item.provider_meta,
-                        normalized_url=norm_url,
-                        url_hash=h,
-                    )
-                )
-
-            # Локальные фильтры шага: must/exclude из query_model
             must_block = step.query_model.must
             exclude_block = step.query_model.exclude
 
-            # must: ALL / ANY
             if must_block.terms:
-                if must_block.mode == "ALL":
-                    # ALL: оставить только элементы, содержащие все фразы
-                    from app.integrations.search.utils import filter_by_must_have
-
-                    filtered = filter_by_must_have(normalized, must_block.terms)
-                else:
-                    # ANY: оставить элементы, содержащие хотя бы одну фразу
-                    from app.integrations.search.utils import _text_for_filtering
-
-                    tmp: list[LinkCandidate] = []
-                    for item in normalized:
-                        text = _text_for_filtering(item)
-                        if any(term.lower() in text for term in must_block.terms if term):
-                            tmp.append(item)
-                    filtered = tmp
+                filtered = filter_by_must_have_quanta(
+                    raw_items,
+                    must_block.terms,
+                    mode=must_block.mode,
+                )
             else:
-                filtered = list(normalized)
+                filtered = list(raw_items)
 
-            # exclude: убрать элементы, содержащие любую фразу
-            filtered = filter_by_exclude(filtered, exclude_block.terms)
+            filtered = filter_by_exclude_quanta(filtered, exclude_block.terms)
 
-            # TimeSlice: фильтр по published_at (только в Executor)
             if time_slice is not None:
-                filtered = _apply_time_slice(filtered, time_slice)
+                filtered = _apply_time_slice_quanta(filtered, time_slice)
 
-            # Дедуп по url_hash между шагами
-            step_items: list[LinkCandidate] = []
-            for item in filtered:
-                if item.url_hash and item.url_hash in seen_hashes:
+            step_items: list[QuantumCreate] = []
+            for q in filtered:
+                key = _quantum_dedup_key_for_seen(q)
+                if key in seen_keys:
                     continue
-                if item.url_hash:
-                    seen_hashes.add(item.url_hash)
-                step_items.append(item)
+                seen_keys.add(key)
+                step_items.append(q)
 
             returned_count = len(step_items)
-            found_count = len(normalized)
+            found_count = len(raw_items)
             all_items.extend(step_items)
 
             step_results.append(
@@ -212,9 +170,7 @@ class SearchExecutor:
                 )
             )
 
-            # Досрочный выход при достижении лимита
             if len(all_items) >= global_target_links:
-                # Оставшиеся шаги помечаем skipped
                 remaining = [
                     s
                     for s in plan.steps[plan.steps.index(step) + 1 :]
@@ -235,15 +191,12 @@ class SearchExecutor:
                     )
                 break
 
-        # Финальная дедупликация
-        all_items = dedup_by_hash(all_items)
-
-        # Обрезка до global_target_links
+        all_items = dedup_quanta(all_items)
         total_found = len(all_items)
         final_items = all_items[:global_target_links]
         total_returned = len(final_items)
 
-        return LinkCollectResult(
+        return QuantumCollectResult(
             items=final_items,
             plan=plan,
             step_results=step_results,

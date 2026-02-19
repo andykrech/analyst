@@ -9,8 +9,10 @@ import grpc
 import xml.etree.ElementTree as ET
 from charset_normalizer import from_bytes
 
-from app.integrations.search.ports import LinkRetrieverPort, RetrieverContext
+from app.integrations.search.ports import RetrieverContext, RetrieverPort
 from app.integrations.search.schemas import LinkCandidate, QueryModel, QueryStep
+from app.integrations.search.utils import normalize_url
+from app.modules.quanta.schemas import QuantumCreate
 from app.integrations.search.retrievers.yandex.grpc.yandex.cloud.searchapi.v2 import (
     search_query_pb2,
     search_service_pb2,
@@ -87,6 +89,57 @@ def _compile_query_model_to_string(model: QueryModel) -> str:
     return query_text or " "
 
 
+# Для legacy-вызова без темы (collect_links по SearchQuery)
+LEGACY_THEME_ID = "00000000-0000-0000-0000-000000000000"
+
+
+def _link_candidates_to_quanta(
+    candidates: list[LinkCandidate],
+    *,
+    theme_id: str,
+    run_id: str | None,
+    query_text: str,
+) -> list[QuantumCreate]:
+    """Преобразовать кандидаты Yandex в кванты (entity_kind=webpage)."""
+    result: list[QuantumCreate] = []
+    for item in candidates:
+        url = (item.url or "").strip()
+        if not url:
+            continue
+        title = (item.title or url).strip() or url
+        summary = (item.snippet or item.title or url).strip() or title
+        canon = normalize_url(url)
+        result.append(
+            QuantumCreate(
+                theme_id=theme_id,
+                run_id=run_id,
+                entity_kind="webpage",
+                title=title,
+                summary_text=summary,
+                key_points=[],
+                language=None,
+                date_at=item.published_at,
+                verification_url=url,
+                canonical_url=canon if canon != url else None,
+                dedup_key=None,
+                fingerprint=None,
+                identifiers=[],
+                matched_terms=[],
+                matched_term_ids=[],
+                retriever_query=query_text,
+                rank_score=float(item.rank) if item.rank is not None else None,
+                source_system="yandex",
+                site_id=None,
+                retriever_name="yandex",
+                retriever_version=None,
+                attrs={},
+                raw_payload_ref=None,
+                content_ref=None,
+            )
+        )
+    return result
+
+
 class YandexRetriever:
     """Retriever для Yandex Search API v2 (gRPC)."""
 
@@ -94,13 +147,21 @@ class YandexRetriever:
     def name(self) -> str:
         return "yandex"
 
-    async def retrieve(self, step: QueryStep, ctx: RetrieverContext) -> list[LinkCandidate]:
+    async def retrieve(self, step: QueryStep, ctx: RetrieverContext) -> list[QuantumCreate]:
         settings = ctx.settings
         api_key = settings.YANDEX_API_KEY
         folder_id = settings.YANDEX_FOLDER_ID
+        theme_id = str(ctx.theme_id) if ctx.theme_id else LEGACY_THEME_ID
+        run_id = ctx.run_id
 
         if not api_key or api_key == "changeme" or not folder_id or folder_id == "changeme":
-            return self._stub_retrieve(step)
+            candidates = self._stub_retrieve_candidates(step)
+            return _link_candidates_to_quanta(
+                candidates,
+                theme_id=theme_id,
+                run_id=run_id,
+                query_text=_compile_query_model_to_string(step.query_model) or " ",
+            )
 
         # Компиляция структурной модели запроса в строку для Yandex
         query_text = _compile_query_model_to_string(step.query_model)
@@ -218,9 +279,14 @@ class YandexRetriever:
             )
             rank += 1
 
-        return items
+        return _link_candidates_to_quanta(
+            items,
+            theme_id=theme_id,
+            run_id=run_id,
+            query_text=query_text,
+        )
 
-    def _stub_retrieve(self, step: QueryStep) -> list[LinkCandidate]:
+    def _stub_retrieve_candidates(self, step: QueryStep) -> list[LinkCandidate]:
         """Заглушка при отсутствии настроек (для тестов и локальной разработки)."""
         import hashlib
 

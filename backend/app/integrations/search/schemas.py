@@ -1,12 +1,15 @@
 """
 Pydantic-схемы для поискового интеграционного слоя.
 """
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.modules.quanta.schemas import QuantumCreate
 
 MAX_KEYWORD_GROUPS = 10
 MAX_TERMS_PER_GROUP = 50
@@ -33,6 +36,7 @@ class ThemeSearchCollectRequest(BaseModel):
     published_from: datetime | None = None
     published_to: datetime | None = None
     target_links: int | None = None
+    run_id: str | None = None
 
 
 class SearchQuery(BaseModel):
@@ -271,15 +275,17 @@ class QueryStep(BaseModel):
 
     Planner не знает про время. Retriever не знает про время.
     Временная фильтрация (TimeSlice) применяется в Executor после поиска.
+    language задаёт язык шага (для мультиязычного плана); если None — ретривер использует ctx.language.
     """
 
     kind: Literal["query"] = "query"
     step_id: str
-    retriever: str  # имя retriever'а (например "yandex")
+    retriever: str  # имя retriever'а (например "openalex")
     source_query_id: UUID  # id из theme_search_queries
     order_index: int
     query_model: QueryModel
     max_results: int
+    language: str | None = None
 
 
 # Discriminated union по kind (сейчас только QueryStep)
@@ -309,9 +315,19 @@ class StepResult(BaseModel):
 
 
 class LinkCollectResult(BaseModel):
-    """Итоговый результат сбора ссылок."""
+    """Итоговый результат сбора ссылок (deprecated: используйте QuantumCollectResult)."""
 
     items: list[LinkCandidate]
+    plan: SearchPlan
+    step_results: list[StepResult]
+    total_found: int
+    total_returned: int
+
+
+class QuantumCollectResult(BaseModel):
+    """Итоговый результат сбора квантов от retriever'ов."""
+
+    items: list[QuantumCreate]
     plan: SearchPlan
     step_results: list[StepResult]
     total_found: int

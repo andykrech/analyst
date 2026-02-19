@@ -36,6 +36,7 @@ class SearchPlanner:
         session: AsyncSession,
         theme_id: UUID,
         mode: str = "default",
+        languages: list[str] | None = None,
     ) -> SearchPlan:
         """
         Построить план поиска из theme_search_queries.
@@ -44,7 +45,8 @@ class SearchPlanner:
         WHERE theme_id = :theme_id AND is_enabled = true
         ORDER BY order_index ASC
 
-        Для каждой записи: retriever'ы из enabled_retrievers или settings.SEARCH_DEFAULT_RETRIEVERS.
+        Для каждой записи и каждого retriever'а создаётся шаг для каждого языка из languages.
+        Если languages пустой/None — один шаг без языка (retriever использует ctx.language).
         max_results: settings.SEARCH_MAX_RESULTS_PER_RETRIEVER, ограниченный target_links записи.
         """
         result = await session.execute(
@@ -61,10 +63,14 @@ class SearchPlanner:
         max_per_retriever = self._settings.SEARCH_MAX_RESULTS_PER_RETRIEVER
         default_max = self._settings.SEARCH_DEFAULT_TARGET_LINKS
 
+        # Один «язык» = один шаг; при отсутствии languages — один шаг с language=None
+        lang_list: list[str | None] = [None]
+        if languages:
+            lang_list = [lang for lang in languages if isinstance(lang, str) and lang.strip()] or [None]
+
         steps: list[QueryStep] = []
         for row in rows:
             if not row.query_model:
-                # Защита от неконсистентных данных (минимально)
                 continue
 
             retrievers = (
@@ -80,17 +86,22 @@ class SearchPlanner:
                     if row.target_links is not None
                     else base_max
                 )
-                step_id = f"q{row.order_index}-{row.id}-{retriever_name}"
-                steps.append(
-                    QueryStep(
-                        step_id=step_id,
-                        retriever=retriever_name,
-                        source_query_id=row.id,
-                        order_index=row.order_index,
-                        query_model=QueryModel.model_validate(row.query_model),
-                        max_results=max_results,
+                query_model = QueryModel.model_validate(row.query_model)
+
+                for lang in lang_list:
+                    lang_suffix = lang or "default"
+                    step_id = f"q{row.order_index}-{row.id}-{retriever_name}-{lang_suffix}"
+                    steps.append(
+                        QueryStep(
+                            step_id=step_id,
+                            retriever=retriever_name,
+                            source_query_id=row.id,
+                            order_index=row.order_index,
+                            query_model=query_model,
+                            max_results=max_results,
+                            language=lang,
+                        )
                     )
-                )
 
         return SearchPlan(
             plan_version=1,
@@ -155,6 +166,7 @@ class SearchPlanner:
                     order_index=idx,
                     query_model=legacy_query_model,
                     max_results=max_results,
+                    language=None,
                 )
             )
 
