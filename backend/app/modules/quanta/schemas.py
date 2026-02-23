@@ -54,6 +54,8 @@ class QuantumCreate(BaseModel):
 
     retriever_query: Optional[str] = Field(None, description="Реальная строка запроса в источник")
     rank_score: Optional[float] = Field(None, description="Оценка релевантности/ранга из источника")
+    opinion_score: Optional[list[Any]] = Field(None, description="Список мнений о релевантности кванта различных моделей ИИ")
+    total_score: Optional[float] = Field(None, description="Итоговая оценка релевантности")
     source_system: str = Field(..., min_length=1, description="Система-источник (OpenAlex, Lens, Web, ...)")
     site_id: Optional[str] = Field(None, description="UUID сайта (опционально)")
     retriever_name: str = Field(..., min_length=1, description="Имя ретривера/модуля")
@@ -101,6 +103,9 @@ class QuantumOut(BaseModel):
     title: str
     summary_text: str
     key_points: list[str]
+    title_translated: Optional[str] = Field(None, description="Заголовок на основном языке темы; null если язык кванта = основной")
+    summary_text_translated: Optional[str] = Field(None, description="Описание на основном языке темы; null если язык кванта = основной")
+    key_points_translated: Optional[list[str]] = Field(None, description="Ключевые пункты на основном языке темы; null если язык кванта = основной")
     language: Optional[str] = None
     date_at: Optional[datetime] = None
 
@@ -115,6 +120,8 @@ class QuantumOut(BaseModel):
 
     retriever_query: Optional[str] = None
     rank_score: Optional[float] = None
+    opinion_score: Optional[list[Any]] = Field(None, description="Список мнений о релевантности кванта различных моделей ИИ")
+    total_score: Optional[float] = Field(None, description="Итоговая оценка релевантности")
     source_system: str
     site_id: Optional[str] = None
     retriever_name: str

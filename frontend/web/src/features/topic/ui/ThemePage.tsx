@@ -392,6 +392,7 @@ export function ThemePage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<1 | 2 | 3 | null>(
     null
   )
+  const [showTranslateConfirm, setShowTranslateConfirm] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
 
   useEffect(() => {
@@ -506,12 +507,11 @@ export function ThemePage() {
     allTermsFromSearch.length > 0 &&
     !allAlreadyTranslated
 
-  const handleTranslateAll = async () => {
-    if (!canTranslate) return
+  const runTranslation = async (termsToTranslate: Term[]) => {
     const sourceLang = theme.languages[0]
     const targetLangs = theme.languages.slice(1)
     if (!sourceLang || targetLangs.length === 0) return
-    const termsPayload = allTermsFromSearch.map((t) => ({
+    const termsPayload = termsToTranslate.map((t) => ({
       id: t.id,
       text: t.text,
       context: t.context,
@@ -537,6 +537,25 @@ export function ThemePage() {
     } finally {
       setIsTranslating(false)
     }
+  }
+
+  const handleTranslateAll = async () => {
+    if (!canTranslate) return
+    const someAlreadyTranslated = allTermsFromSearch.some((t) => !t.needsTranslation)
+    if (someAlreadyTranslated) {
+      setShowTranslateConfirm(true)
+      return
+    }
+    await runTranslation(allTermsFromSearch)
+  }
+
+  const handleTranslateConfirm = async (translateAll: boolean) => {
+    setShowTranslateConfirm(false)
+    const termsToTranslate = translateAll
+      ? allTermsFromSearch
+      : allTermsFromSearch.filter((t) => t.needsTranslation)
+    if (termsToTranslate.length === 0) return
+    await runTranslation(termsToTranslate)
   }
 
   return (
@@ -845,6 +864,30 @@ export function ThemePage() {
                 onClick={() => handleDeleteQueryConfirm(false)}
               >
                 Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTranslateConfirm && (
+        <div className="theme-page__dialog-backdrop" role="dialog" aria-modal="true">
+          <div className="theme-page__dialog">
+            <p>Некоторые ключевые слова уже имеют перевод. Перевести эти слова еще раз?</p>
+            <div className="theme-page__dialog-actions">
+              <button
+                type="button"
+                className="theme-page__suggest-btn"
+                onClick={() => handleTranslateConfirm(true)}
+              >
+                Да
+              </button>
+              <button
+                type="button"
+                className="theme-page__btn-secondary"
+                onClick={() => handleTranslateConfirm(false)}
+              >
+                Нет
               </button>
             </div>
           </div>

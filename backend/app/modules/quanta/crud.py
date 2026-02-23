@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.postgresql import JSONB, insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.quanta.models import Quantum, QuantumEntityKind
@@ -103,6 +103,10 @@ def build_upsert_stmt(
     def fill_if_null(col: sa.ColumnElement, new_val: sa.ColumnElement) -> sa.ColumnElement:
         return sa.case((col.is_(None), new_val), else_=col)
 
+    # При конфликте: переведённые поля берём из входящей строки, если там не NULL (чтобы новые переводы всегда записались)
+    def take_new_if_not_null(col: sa.ColumnElement, new_val: sa.ColumnElement) -> sa.ColumnElement:
+        return sa.case((new_val.isnot(None), new_val), else_=col)
+
     def fill_if_empty_text(col: sa.ColumnElement, new_val: sa.ColumnElement) -> sa.ColumnElement:
         return sa.case(((col == ""), new_val), else_=col)
 
@@ -110,7 +114,9 @@ def build_upsert_stmt(
         return sa.case((sa.func.jsonb_array_length(col) == 0, new_val), else_=col)
 
     def fill_if_empty_object(col: sa.ColumnElement, new_val: sa.ColumnElement) -> sa.ColumnElement:
-        return sa.case((sa.func.jsonb_object_length(col) == 0, new_val), else_=col)
+        # В PostgreSQL нет jsonb_object_length; пустой объект проверяем как col == '{}'::jsonb
+        empty_jsonb = sa.cast(sa.text("'{}'"), JSONB)
+        return sa.case((col == empty_jsonb, new_val), else_=col)
 
     set_ = {
         # Текстовые поля: заполняем только если пусто/NULL.
@@ -124,6 +130,10 @@ def build_upsert_stmt(
         "retriever_version": fill_if_null(Quantum.retriever_version, excluded.retriever_version),
         "raw_payload_ref": fill_if_null(Quantum.raw_payload_ref, excluded.raw_payload_ref),
         "content_ref": fill_if_null(Quantum.content_ref, excluded.content_ref),
+        # Переводы: при конфликте перезаписываем из входящей строки, если там не NULL
+        "title_translated": take_new_if_not_null(Quantum.title_translated, excluded.title_translated),
+        "summary_text_translated": take_new_if_not_null(Quantum.summary_text_translated, excluded.summary_text_translated),
+        "key_points_translated": take_new_if_not_null(Quantum.key_points_translated, excluded.key_points_translated),
         # JSONB массивы: только если массив пустой
         "key_points": fill_if_empty_array(Quantum.key_points, excluded.key_points),
         "identifiers": fill_if_empty_array(Quantum.identifiers, excluded.identifiers),
@@ -168,6 +178,9 @@ async def create_quantum(
     attrs: dict[str, Any] | None,
     raw_payload_ref: uuid.UUID | None,
     content_ref: str | None,
+    title_translated: str | None = None,
+    summary_text_translated: str | None = None,
+    key_points_translated: list[str] | None = None,
 ) -> Quantum:
     """
     Создать квант с дедупликацией по (theme_id, dedup_key).
@@ -212,6 +225,9 @@ async def create_quantum(
         "attrs": attrs or {},
         "raw_payload_ref": raw_payload_ref,
         "content_ref": content_ref,
+        "title_translated": title_translated,
+        "summary_text_translated": summary_text_translated,
+        "key_points_translated": key_points_translated,
     }
 
     stmt = build_upsert_stmt(values=values).returning(Quantum.id)

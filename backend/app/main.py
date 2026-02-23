@@ -10,6 +10,7 @@ from app.integrations.email import AuthEmailService, get_email_sender
 from app.integrations.llm import LLMService
 from app.integrations.search import SearchService
 from app.integrations.search.router import router as search_router
+from app.integrations.translation import TranslationService
 from app.modules.auth.router import router as auth_router
 from app.modules.quanta.router import router as quanta_router
 from app.modules.site.router import router as site_router
@@ -28,6 +29,8 @@ async def lifespan(app: FastAPI):
     app.state.auth_email_service = AuthEmailService(email_sender)
     app.state.llm_service = LLMService(settings)
     app.state.search_service = SearchService(settings)
+    app.state.translation_service = TranslationService(settings)
+
     yield
     # shutdown при необходимости
 

@@ -15,6 +15,11 @@ import type {
   ThemeSiteUpdateRequest,
 } from '@/features/source/api/dto'
 import {
+  listThemeQuanta,
+  runSearchByTheme,
+} from '@/features/quanta'
+import type { QuantumOutDto } from '@/features/quanta'
+import {
   listThemeSources,
   createThemeSource,
   updateThemeSource,
@@ -122,17 +127,34 @@ export interface TopicSourcesData {
   }
 }
 
+export interface TopicQuantaData {
+  items: QuantumOutDto[]
+  total: number
+  isLoading: boolean
+  error: string | null
+}
+
 export interface TopicData {
   theme: TopicTheme
   search: SearchData
   sources: unknown[]
   siteSources: TopicSourcesData
+  quanta: TopicQuantaData
   entities: Record<string, unknown>
   events: Record<string, unknown>
 }
 
 export interface TopicUi {
-  activeTab: 'theme' | 'sources'
+  activeTab: 'theme' | 'sources' | 'quanta'
+}
+
+function getInitialQuanta(): TopicQuantaData {
+  return {
+    items: [],
+    total: 0,
+    isLoading: false,
+    error: null,
+  }
 }
 
 const EMPTY_THEME: TopicTheme = {
@@ -232,7 +254,7 @@ interface TopicStore {
   /** Список тем для навигации (заполняется провайдером TopicsNavProvider). */
   themesForNav: ThemeListItemDto[]
 
-  setActiveTab: (tab: 'theme' | 'sources') => void
+  setActiveTab: (tab: 'theme' | 'sources' | 'quanta') => void
   setThemesForNav: (themes: ThemeListItemDto[]) => void
   applyThemeSuggestions: (payload: ThemePrepareResponse) => void
   suggestThemeFromDescription: () => Promise<void>
@@ -322,6 +344,11 @@ interface TopicStore {
   recommendSources: () => Promise<void>
   clearSourcesRecommendError: () => void
   addRecommendedSource: (item: RecommendedSiteItem) => Promise<void>
+
+  // Quanta (информационные кванты по теме)
+  loadQuanta: () => Promise<void>
+  runSearch: () => Promise<void>
+  clearQuantaError: () => void
 }
 
 export const useTopicStore = create<TopicStore>((set) => ({
@@ -332,6 +359,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
     search: getInitialSearch(),
     sources: [],
     siteSources: getInitialSiteSources(),
+    quanta: getInitialQuanta(),
     entities: {},
     events: {},
   },
@@ -359,6 +387,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
         search: getInitialSearch(),
         sources: [],
         siteSources: getInitialSiteSources(),
+        quanta: getInitialQuanta(),
         entities: {},
         events: {},
       },
@@ -1969,6 +1998,83 @@ export const useTopicStore = create<TopicStore>((set) => ({
       // 409 или другая ошибка — не перезаписываем sourcesRecommend
     }
   },
+
+  loadQuanta: async () => {
+    const themeId = useTopicStore.getState().activeTopicId
+    if (!themeId) return
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        quanta: { ...s.data.quanta, isLoading: true, error: null },
+      },
+    }))
+    try {
+      const res = await listThemeQuanta(themeId, { limit: 200 })
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          quanta: {
+            items: res.items,
+            total: res.total,
+            isLoading: false,
+            error: null,
+          },
+        },
+      }))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Ошибка загрузки квантов'
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          quanta: { ...s.data.quanta, isLoading: false, error: msg },
+        },
+      }))
+    }
+  },
+
+  runSearch: async () => {
+    const state = useTopicStore.getState()
+    const themeId = state.activeTopicId
+    if (!themeId) return
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        quanta: { ...s.data.quanta, isLoading: true, error: null },
+      },
+    }))
+    try {
+      await runSearchByTheme({ theme_id: themeId, target_links: 50 })
+      useTopicStore.getState().setActiveTab('quanta')
+      await useTopicStore.getState().loadQuanta()
+    } catch (e) {
+      const isAbort = e instanceof Error && e.name === 'AbortError'
+      const msg = isAbort
+        ? 'Поиск занял слишком много времени. Обновите список квантов — часть данных могла сохраниться.'
+        : e instanceof Error
+          ? e.message
+          : 'Ошибка поиска'
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          quanta: { ...s.data.quanta, isLoading: false, error: msg },
+        },
+      }))
+    }
+  },
+
+  clearQuantaError: () =>
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        quanta: { ...s.data.quanta, error: null },
+      },
+    })),
 
   seedSearchPoolsForTesting: () =>
     set((s) => {

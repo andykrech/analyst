@@ -37,12 +37,17 @@ class PublicationRetriever:
         language = (step.language or ctx.language or "en").strip() or "en"
         time_slice = ctx.time_slice
 
+        logger.info(
+            "search/retriever: шаг step_id=%s, запрашиваем max_results=%s",
+            step.step_id,
+            step.max_results,
+        )
         settings = ctx.settings
         adapter = OpenAlexPublicationAdapter(
             api_key=settings.OPENALEX_API_KEY,
             timeout_s=30.0,
         )
-        return await adapter.search_publications(
+        items = await adapter.search_publications(
             step.query_model,
             terms_by_id,
             language=language,
@@ -53,3 +58,9 @@ class PublicationRetriever:
             require_abstract=True,
             request_id=ctx.request_id,
         )
+        logger.info(
+            "search/retriever: шаг step_id=%s, вернулось квантов=%s",
+            step.step_id,
+            len(items),
+        )
+        return items

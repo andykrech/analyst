@@ -241,7 +241,7 @@ def map_openalex_work_to_quantum(
         matched_terms=[],
         matched_term_ids=[],
         retriever_query=compiled_query_string,
-        rank_score=float(work_json["cited_by_count"]) if isinstance(work_json.get("cited_by_count"), (int, float)) else None,
+        rank_score=float(work_json["relevance_score"]) if isinstance(work_json.get("relevance_score"), (int, float)) else None,
         source_system="openalex",
         retriever_name="openalex",
         retriever_version=None,

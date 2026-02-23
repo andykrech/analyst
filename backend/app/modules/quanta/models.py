@@ -117,6 +117,21 @@ class Quantum(Base):
         server_default=text("'[]'::jsonb"),
         comment="Ключевые пункты (список строк), могут быть из источника или derived",
     )
+    title_translated: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Заголовок на основном языке темы (languages[0]); NULL если язык кванта совпадает с основным",
+    )
+    summary_text_translated: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Описание на основном языке темы; NULL если язык кванта совпадает с основным",
+    )
+    key_points_translated: Mapped[Optional[list]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Ключевые пункты на основном языке темы (список строк); NULL если язык кванта совпадает с основным",
+    )
     language: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
@@ -177,6 +192,15 @@ class Quantum(Base):
     rank_score: Mapped[Optional[float]] = mapped_column(
         nullable=True,
         comment="Оценка релевантности/ранга из источника",
+    )
+    opinion_score: Mapped[Optional[list]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Список мнений о релевантности кванта различных моделей ИИ",
+    )
+    total_score: Mapped[Optional[float]] = mapped_column(
+        nullable=True,
+        comment="Итоговая оценка релевантности",
     )
 
     source_system: Mapped[str] = mapped_column(

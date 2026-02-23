@@ -3,7 +3,9 @@ SearchPlanner: строит план поиска.
 
 theme_search_queries — источник истины для планирования поиска.
 Planner не использует keywords темы, не использует TimeSlice.
+В БД query_model хранится с ключами termIds; схемы ожидают terms — нормализуем при чтении.
 """
+import logging
 from uuid import UUID
 
 from sqlalchemy import select
@@ -21,6 +23,33 @@ from app.integrations.search.schemas import (
     SearchQuery,
 )
 from app.modules.theme.model import ThemeSearchQuery
+
+
+def _normalize_query_model_from_db(raw: dict) -> dict:
+    """
+    Привести query_model из БД (termIds) к виду схем (terms).
+    Копирует termIds -> terms для keywords.groups[], must, exclude.
+    """
+    if not raw:
+        return raw
+    out = dict(raw)
+    # keywords.groups[].termIds -> terms
+    kw = out.get("keywords")
+    if isinstance(kw, dict) and "groups" in kw:
+        groups = list(kw.get("groups") or [])
+        for i, g in enumerate(groups):
+            if isinstance(g, dict) and "termIds" in g and "terms" not in g:
+                groups[i] = {**g, "terms": g.get("termIds") or []}
+        out["keywords"] = {**kw, "groups": groups}
+    # must.termIds -> terms
+    must = out.get("must")
+    if isinstance(must, dict) and "termIds" in must and "terms" not in must:
+        out["must"] = {**must, "terms": must.get("termIds") or []}
+    # exclude.termIds -> terms
+    ex = out.get("exclude")
+    if isinstance(ex, dict) and "termIds" in ex and "terms" not in ex:
+        out["exclude"] = {**ex, "terms": ex.get("termIds") or []}
+    return out
 
 
 class SearchPlanner:
@@ -47,7 +76,7 @@ class SearchPlanner:
 
         Для каждой записи и каждого retriever'а создаётся шаг для каждого языка из languages.
         Если languages пустой/None — один шаг без языка (retriever использует ctx.language).
-        max_results: settings.SEARCH_MAX_RESULTS_PER_RETRIEVER, ограниченный target_links записи.
+        max_results: из settings.SEARCH_MAX_RESULTS_PER_RETRIEVER (для OpenAlex по умолчанию 50; для теста мог быть лимит 2 в .env).
         """
         result = await session.execute(
             select(ThemeSearchQuery)
@@ -81,12 +110,10 @@ class SearchPlanner:
 
             for retriever_name in retrievers:
                 base_max = max_per_retriever.get(retriever_name, default_max)
-                max_results = (
-                    min(base_max, row.target_links)
-                    if row.target_links is not None
-                    else base_max
+                max_results = base_max
+                query_model = QueryModel.model_validate(
+                    _normalize_query_model_from_db(row.query_model)
                 )
-                query_model = QueryModel.model_validate(row.query_model)
 
                 for lang in lang_list:
                     lang_suffix = lang or "default"
@@ -103,6 +130,13 @@ class SearchPlanner:
                         )
                     )
 
+        logger = logging.getLogger(__name__)
+        max_results_per_step = [s.max_results for s in steps]
+        logger.info(
+            "search/planner: план построен, шагов=%s, max_results по шагам=%s",
+            len(steps),
+            max_results_per_step,
+        )
         return SearchPlan(
             plan_version=1,
             mode=mode if mode in ("discovery", "monitoring") else "discovery",

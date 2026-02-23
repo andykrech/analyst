@@ -1,8 +1,10 @@
 """
-SearchExecutor: выполняет план поиска, применяет MUST/EXCLUDE, TimeSlice, дедуп, обрезку.
+SearchExecutor: выполняет план поиска, применяет TimeSlice, дедуп, обрезку.
 
 Работает с квантами (QuantumCreate). TimeSlice — фильтр по date_at.
 """
+import logging
+
 from app.integrations.search.ports import RetrieverContext, RetrieverPort
 from app.integrations.search.schemas import (
     QuantumCollectResult,
@@ -11,11 +13,7 @@ from app.integrations.search.schemas import (
     StepResult,
     TimeSlice,
 )
-from app.integrations.search.utils import (
-    dedup_quanta,
-    filter_by_exclude_quanta,
-    filter_by_must_have_quanta,
-)
+from app.integrations.search.utils import dedup_quanta
 from app.modules.quanta.schemas import QuantumCreate
 
 
@@ -64,6 +62,12 @@ class SearchExecutor:
         global_target_links: int,
         ctx: RetrieverContext,
     ) -> QuantumCollectResult:
+        logger = logging.getLogger(__name__)
+        logger.info(
+            "search/executor: запуск, global_target_links=%s, шагов в плане=%s",
+            global_target_links,
+            len(plan.steps),
+        )
         all_items: list[QuantumCreate] = []
         step_results: list[StepResult] = []
         seen_keys: set[tuple[str, str]] = set()
@@ -129,20 +133,7 @@ class SearchExecutor:
                 )
                 continue
 
-            must_block = step.query_model.must
-            exclude_block = step.query_model.exclude
-
-            if must_block.terms:
-                filtered = filter_by_must_have_quanta(
-                    raw_items,
-                    must_block.terms,
-                    mode=must_block.mode,
-                )
-            else:
-                filtered = list(raw_items)
-
-            filtered = filter_by_exclude_quanta(filtered, exclude_block.terms)
-
+            filtered = list(raw_items)
             if time_slice is not None:
                 filtered = _apply_time_slice_quanta(filtered, time_slice)
 
@@ -195,6 +186,12 @@ class SearchExecutor:
         total_found = len(all_items)
         final_items = all_items[:global_target_links]
         total_returned = len(final_items)
+        logger.info(
+            "search/executor: итог total_found=%s, total_returned=%s, len(final_items)=%s",
+            total_found,
+            total_returned,
+            len(final_items),
+        )
 
         return QuantumCollectResult(
             items=final_items,

@@ -15,9 +15,6 @@ from app.integrations.search.retrievers.publication.openalex.client import (
 from app.integrations.search.retrievers.publication.openalex.query_compiler import (
     compile_openalex_query,
 )
-from app.integrations.search.retrievers.publication.openalex.local_filter import (
-    passes_must_exclude,
-)
 from app.integrations.search.retrievers.publication.openalex.mapper import (
     map_openalex_work_to_quantum,
 )
@@ -56,7 +53,7 @@ class OpenAlexPublicationAdapter:
         - run_id опционален (ID прогона поиска, передаётся из контекста).
         - time_slice опционален (filter from_publication_date / to_publication_date).
         - Возвращает только публикации с summary_text (abstract), если require_abstract=True.
-        - Локальная фильтрация MUST/EXCLUDE по title + summary_text.
+        - MUST/EXCLUDE задаются в запросе к OpenAlex (query_compiler), локально не дублируются.
         - Дедуп не выполняется.
         """
         if not language or not isinstance(language, str) or not language.strip():
@@ -65,12 +62,19 @@ class OpenAlexPublicationAdapter:
             raise ValueError("theme_id is required for OpenAlex publication search")
 
         compiled = compile_openalex_query(query_model, terms_by_id, language)
+
         from_date: str | None = None
         to_date: str | None = None
         if time_slice:
             from_date = time_slice.published_from.strftime("%Y-%m-%d")
             to_date = time_slice.published_to.strftime("%Y-%m-%d")
 
+        logger.info(
+            "search/adapter: OpenAlex запрос, limit=%s, per_page=%s (request_id=%s)",
+            limit,
+            min(limit, 200),
+            request_id,
+        )
         try:
             data = await openalex_search_works(
                 search=compiled,
@@ -86,9 +90,17 @@ class OpenAlexPublicationAdapter:
             return []
 
         results_raw = data.get("results") or []
+        logger.info(
+            "search/adapter: OpenAlex ответ, пришло результатов из API=%s (request_id=%s)",
+            len(results_raw),
+            request_id,
+        )
         quanta: list[InfoQuantum] = []
+        skipped_not_dict = 0
+        skipped_mapper_none = 0  # маппер вернул None (часто нет abstract при require_abstract=True)
         for work in results_raw:
             if not isinstance(work, dict):
+                skipped_not_dict += 1
                 continue
             q = map_openalex_work_to_quantum(
                 work,
@@ -99,11 +111,18 @@ class OpenAlexPublicationAdapter:
                 require_abstract=require_abstract,
             )
             if q is None:
+                skipped_mapper_none += 1
                 continue
-            if not passes_must_exclude(q, query_model, terms_by_id, language):
-                continue
+            # MUST/EXCLUDE уже учтены в запросе к OpenAlex (query_compiler), локально не дублируем
             quanta.append(q)
             if len(quanta) >= limit:
                 break
 
+        logger.info(
+            "search/adapter: OpenAlex возврат квантов после фильтров=%s (request_id=%s); отсеяно: not_dict=%s, mapper_none=%s",
+            len(quanta),
+            request_id,
+            skipped_not_dict,
+            skipped_mapper_none,
+        )
         return quanta

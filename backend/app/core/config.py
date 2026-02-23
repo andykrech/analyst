@@ -122,11 +122,23 @@ class Settings:
     DEEPSEEK_PRICE_COMPLETION_PER_1M: Decimal = _decimal("DEEPSEEK_PRICE_COMPLETION_PER_1M", 0)
     DEEPSEEK_CURRENCY: str = _str("DEEPSEEK_CURRENCY", "USD")
 
-    # Search: retriever'ы по умолчанию, лимиты (сейчас — OpenAlex публикации)
+    # Search: retriever'ы по умолчанию, лимиты (сейчас — OpenAlex публикации).
+    # Лимит OpenAlex из env (для теста мог быть SEARCH_MAX_RESULTS_OPENALEX=2 — уберите из .env).
     SEARCH_DEFAULT_RETRIEVERS: list[str] = ["openalex"]
-    SEARCH_MAX_RESULTS_PER_RETRIEVER: dict[str, int] = {"openalex": 50}
+    SEARCH_MAX_RESULTS_PER_RETRIEVER: dict[str, int] = {"openalex": _int("SEARCH_MAX_RESULTS_OPENALEX", 50)}
     SEARCH_DEFAULT_TIME_WINDOW_DAYS: int = _int("SEARCH_DEFAULT_TIME_WINDOW_DAYS", 7)
     SEARCH_DEFAULT_TARGET_LINKS: int = _int("SEARCH_DEFAULT_TARGET_LINKS", 50)
+
+    # Перевод квантов: метод "translator" (DeepL и др.) | "llm" (текущий ИИ)
+    QUANTA_TRANSLATION_METHOD: str = _str("QUANTA_TRANSLATION_METHOD", "translator")
+    # Макс. число квантов для перевода: 0 = все, >0 = только первые N (для отладки и экономии лимитов)
+    QUANTA_TRANSLATION_LIMIT: int = _int("QUANTA_TRANSLATION_LIMIT", 0)
+    # Используемый переводчик (при QUANTA_TRANSLATION_METHOD=translator): deepl, ...
+    TRANSLATOR: str = _str("TRANSLATOR", "deepl")
+    # DeepL API (REST)
+    DEEPL_API_KEY: SecretStr = SecretStr(_str("DEEPL_API_KEY", ""))
+    # Yandex Cloud Translate API (REST); folder — тот же YANDEX_FOLDER_ID
+    YANDEX_API_KEY_TRANSLATE: SecretStr = SecretStr(_str("YANDEX_API_KEY_TRANSLATE", ""))
 
     # OpenAlex API (публикации)
     OPENALEX_API_KEY: str = _str("OPENALEX_API_KEY", "")

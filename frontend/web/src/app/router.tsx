@@ -6,6 +6,7 @@ import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { AppLayout } from '@/app/layout/AppLayout'
 import { ThemePage } from '@/features/topic/ui/ThemePage'
 import { SourcesPage } from '@/features/topic/ui/SourcesPage'
+import { QuantaPage } from '@/features/quanta'
 
 export const router = createBrowserRouter([
   {
@@ -50,6 +51,10 @@ export const router = createBrowserRouter([
           {
             path: 'sources',
             element: <SourcesPage />,
+          },
+          {
+            path: 'quanta',
+            element: <QuantaPage />,
           },
         ],
       },

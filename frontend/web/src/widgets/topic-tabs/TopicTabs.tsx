@@ -20,6 +20,8 @@ export function TopicTabs() {
   const search = useTopicStore((s) => s.data.search)
   const activeTopicId = useTopicStore((s) => s.activeTopicId)
   const loadTopicIntoStore = useTopicStore((s) => s.loadTopicIntoStore)
+  const runSearch = useTopicStore((s) => s.runSearch)
+  const quantaLoading = useTopicStore((s) => s.data.quanta.isLoading)
 
   const [saving, setSaving] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -92,6 +94,15 @@ export function TopicTabs() {
         >
           Источники
         </NavLink>
+        <NavLink
+          to="/topic/quanta"
+          className={({ isActive }) =>
+            `topic-tabs__link ${isActive ? 'topic-tabs__link--active' : ''}`
+          }
+          onClick={() => setActiveTab('quanta')}
+        >
+          Кванты
+        </NavLink>
       </nav>
       <div className="topic-tabs__actions">
         {successMessage && (
@@ -104,6 +115,15 @@ export function TopicTabs() {
             {errorMessage}
           </span>
         )}
+        <button
+          type="button"
+          className="topic-tabs__search-btn"
+          onClick={() => runSearch()}
+          disabled={quantaLoading || !activeTopicId}
+          title={!activeTopicId ? 'Сначала сохраните тему' : undefined}
+        >
+          {quantaLoading ? 'Поиск…' : 'Поиск информации'}
+        </button>
         <button
           type="button"
           className="topic-tabs__save-btn"

@@ -64,6 +64,20 @@ async def create_theme_with_queries(
     return theme
 
 
+async def get_theme_by_id(
+    session: AsyncSession,
+    theme_id: uuid.UUID,
+) -> Theme | None:
+    """Получить тему по id (без проверки владельца). Для внутреннего использования (например, поиск)."""
+    result = await session.execute(
+        select(Theme).where(
+            Theme.id == theme_id,
+            Theme.deleted_at.is_(None),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_themes(
     session: AsyncSession,
     user_id: uuid.UUID,
