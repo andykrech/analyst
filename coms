@@ -1,9 +1,0 @@
-cd infra/docker && docker compose up --build -d
-docker compose -f infra/docker/docker-compose.yml logs -f
-cd frontend/web && npm run dev
-
-source backend/.venv/Scripts/activate
-
-docker compose exec backend alembic revision --autogenerate -m "Add users table"
-
-docker compose exec backend alembic upgrade head

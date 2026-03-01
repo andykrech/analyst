@@ -29,6 +29,7 @@ export function SideNav() {
   const navigate = useNavigate()
   const status = useTopicStore((s) => s.status)
   const activeTopicId = useTopicStore((s) => s.activeTopicId)
+  useTopicStore((s) => s.themesForNav)
   const resetToEmptyDraft = useTopicStore((s) => s.resetToEmptyDraft)
   const loadThemeFromApi = useTopicStore((s) => s.loadThemeFromApi)
   const { loading: themesLoading } = useThemes()

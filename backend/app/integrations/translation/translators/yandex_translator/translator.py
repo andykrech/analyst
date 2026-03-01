@@ -154,6 +154,14 @@ class YandexTranslator:
                 "Authorization": f"Api-Key {self._api_key}",
                 "Content-Type": "application/json",
             }
+            logger.debug(
+                "Yandex Translate request: url=%s source=%s target=%s batch_size=%s batch_chars=%s",
+                self._url,
+                src,
+                tgt,
+                len(batch),
+                batch_chars,
+            )
             async with httpx.AsyncClient(timeout=self._timeout_s) as client:
                 try:
                     resp = await client.post(self._url, json=body, headers=headers)
@@ -161,13 +169,23 @@ class YandexTranslator:
                     data = resp.json()
                 except httpx.HTTPStatusError as e:
                     logger.warning(
-                        "Yandex Translate API HTTP error: %s %s",
+                        "Yandex Translate API HTTP error: url=%s status=%s body=%s",
+                        self._url,
                         e.response.status_code,
-                        e.response.text,
+                        (e.response.text or "")[:2000],
                     )
                     raise
                 except httpx.RequestError as e:
-                    logger.warning("Yandex Translate API request error: %s", e)
+                    cause = getattr(e, "__cause__", None)
+                    logger.warning(
+                        "Yandex Translate API request error: url=%s error=%s (%s)%s",
+                        self._url,
+                        type(e).__name__,
+                        e,
+                        f" cause={cause!r}" if cause else "",
+                    )
+                    if cause:
+                        logger.debug("Yandex Translate request cause: %s", cause, exc_info=True)
                     raise
 
             for t in data.get("translations") or []:

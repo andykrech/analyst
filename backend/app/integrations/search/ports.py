@@ -27,6 +27,7 @@ class RetrieverContext:
     terms_by_id: dict[str, Any] | None = None
     language: str | None = None
     time_slice: TimeSlice | None = None
+    theme_relevance_vector: list[float] | None = None
 
 
 class RetrieverPort(Protocol):

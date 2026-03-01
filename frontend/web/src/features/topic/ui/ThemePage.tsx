@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useBlocker } from 'react-router-dom'
+import ISO6391 from 'iso-639-1'
 import type { Term } from '@/shared/types/term'
 import { useTopicStore } from '@/app/store/topicStore'
-import { themesApi } from '@/features/topic/api/themesApi'
+import {
+  themesApi,
+  type ThemeSaveTermDto,
+} from '@/features/topic/api/themesApi'
 import {
   type GroupOp,
   type TermPools,
@@ -29,12 +33,13 @@ function getTermFromPools(
   return list.find((t) => t.id === termId) ?? null
 }
 
-/** Неиспользуемые ключевые слова: только добавление и «В группу»; без удаления. */
+/** Неиспользуемые ключевые слова: добавление, «В группу», удаление из пула. */
 function UnusedKeywordsBlock({
   terms,
   onAdd,
   onMoveToGroup,
   onTermClick,
+  onRemove,
   groupCount,
   inputOnly,
   listOnly,
@@ -43,6 +48,7 @@ function UnusedKeywordsBlock({
   onAdd: (text: string) => void
   onMoveToGroup: (termId: string, groupIndex: number) => void
   onTermClick?: (id: string) => void
+  onRemove?: (termId: string) => void
   groupCount: number
   inputOnly?: boolean
   listOnly?: boolean
@@ -108,6 +114,17 @@ function UnusedKeywordsBlock({
                   ))}
                 </select>
               )}
+              {onRemove && (
+                <button
+                  type="button"
+                  className="theme-page__word-tag-remove"
+                  onClick={() => onRemove(t.id)}
+                  aria-label={`Удалить ${t.text}`}
+                  title="Удалить из пула"
+                >
+                  ×
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -116,7 +133,7 @@ function UnusedKeywordsBlock({
   )
 }
 
-/** Группа ключевых слов: оператор OR/AND, теги со стрелкой вверх (в неиспользуемые). */
+/** Группа ключевых слов: оператор OR/AND, теги со стрелкой вверх (в неиспользуемые), удаление из пула. */
 function KeywordGroupBlock({
   index,
   op,
@@ -126,6 +143,7 @@ function KeywordGroupBlock({
   onConnectorChange,
   onMoveToUnused,
   onTermClick,
+  onRemove,
   onRemoveGroup,
   canRemoveGroup,
 }: {
@@ -137,6 +155,7 @@ function KeywordGroupBlock({
   onConnectorChange: (op: GroupOp) => void
   onMoveToUnused: (termId: string) => void
   onTermClick?: (termId: string) => void
+  onRemove?: (termId: string) => void
   onRemoveGroup: () => void
   canRemoveGroup: boolean
 }) {
@@ -201,6 +220,17 @@ function KeywordGroupBlock({
               >
                 ↑
               </button>
+              {onRemove && (
+                <button
+                  type="button"
+                  className="theme-page__word-tag-remove"
+                  onClick={() => onRemove(t.id)}
+                  aria-label={`Удалить ${t.text}`}
+                  title="Удалить из пула"
+                >
+                  ×
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -209,12 +239,13 @@ function KeywordGroupBlock({
   )
 }
 
-/** Один список терминов: только «В запрос» (в группу) и клик по термину для модалки. */
+/** Один список терминов: «В запрос», клик по термину для модалки, удаление из пула. */
 function UnusedTermsList({
   terms,
   onAdd,
   onMoveToGroup,
   onTermClick,
+  onRemove,
   placeholder,
   moveLabel,
   inputOnly,
@@ -224,6 +255,7 @@ function UnusedTermsList({
   onAdd: (text: string) => void
   onMoveToGroup: (termId: string) => void
   onTermClick?: (id: string) => void
+  onRemove?: (termId: string) => void
   placeholder: string
   moveLabel: string
   inputOnly?: boolean
@@ -279,6 +311,17 @@ function UnusedTermsList({
               >
                 {moveLabel}
               </button>
+              {onRemove && (
+                <button
+                  type="button"
+                  className="theme-page__word-tag-remove"
+                  onClick={() => onRemove(t.id)}
+                  aria-label={`Удалить ${t.text}`}
+                  title="Удалить из пула"
+                >
+                  ×
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -287,15 +330,17 @@ function UnusedTermsList({
   )
 }
 
-/** Термины в группе запроса (MUST или NOT): стрелка вверх в неиспользуемые. */
+/** Термины в группе запроса (MUST или NOT): стрелка вверх в неиспользуемые, удаление из пула. */
 function UsedTermsList({
   terms,
   onMoveToUnused,
   onTermClick,
+  onRemove,
 }: {
   terms: Term[]
   onMoveToUnused: (termId: string) => void
   onTermClick?: (id: string) => void
+  onRemove?: (termId: string) => void
 }) {
   return (
     <ul className="theme-page__word-tags">
@@ -321,18 +366,48 @@ function UsedTermsList({
           >
             ↑
           </button>
+          {onRemove && (
+            <button
+              type="button"
+              className="theme-page__word-tag-remove"
+              onClick={() => onRemove(t.id)}
+              aria-label={`Удалить ${t.text}`}
+              title="Удалить из пула"
+            >
+              ×
+            </button>
+          )}
         </li>
       ))}
     </ul>
   )
 }
 
+/** Язык по умолчанию (как в LanguagesBlock): navigator → ISO6391, fallback ru */
+function getDefaultLanguage(): string {
+  const navLang = navigator.language.split('-')[0]
+  return ISO6391.validate(navLang) ? navLang : 'ru'
+}
+
+function termToDto(t: Term): ThemeSaveTermDto {
+  return {
+    id: t.id,
+    text: t.text,
+    context: t.context ?? '',
+    translations: t.translations ?? {},
+  }
+}
+
 export function ThemePage() {
+  const activeTopicId = useTopicStore((s) => s.activeTopicId)
   const theme = useTopicStore((s) => s.data.theme)
   const search = useTopicStore((s) => s.data.search)
   const aiSuggest = useTopicStore((s) => s.aiSuggest)
   const setThemeTitle = useTopicStore((s) => s.setThemeTitle)
   const setThemeDescription = useTopicStore((s) => s.setThemeDescription)
+  const loadThemeFromApi = useTopicStore((s) => s.loadThemeFromApi)
+  const setThemesForNav = useTopicStore((s) => s.setThemesForNav)
+  const setStatusLoaded = useTopicStore((s) => s.setStatusLoaded)
   const suggestThemeFromDescription = useTopicStore(
     (s) => s.suggestThemeFromDescription
   )
@@ -354,6 +429,9 @@ export function ThemePage() {
   const newQueryAfterConfirm = useTopicStore((s) => s.newQueryAfterConfirm)
   const startEditingQuery = useTopicStore((s) => s.startEditingQuery)
   const deleteSavedQuery = useTopicStore((s) => s.deleteSavedQuery)
+  const removeSearchKeyword = useTopicStore((s) => s.removeSearchKeyword)
+  const removeSearchMustTerm = useTopicStore((s) => s.removeSearchMustTerm)
+  const removeSearchExcludeTerm = useTopicStore((s) => s.removeSearchExcludeTerm)
   const updateSearchTermInPool = useTopicStore((s) => s.updateSearchTermInPool)
 
   const draft = search.queries[0]
@@ -394,6 +472,10 @@ export function ThemePage() {
   )
   const [showTranslateConfirm, setShowTranslateConfirm] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  const isCreateMode = activeTopicId === null
 
   useEffect(() => {
     if (selectedTermId !== null && selectedTerm === null) {
@@ -417,8 +499,10 @@ export function ThemePage() {
   }, [search.isEditingDraft])
 
   const handleLeaveConfirm = (save: boolean) => {
-    if (save) saveCurrentQuery()
-    else newQueryAfterConfirm(false)
+    if (save) {
+      saveCurrentQuery()
+      void saveSearchQueriesToBackend()
+    } else newQueryAfterConfirm(false)
     if (typeof leaveBlocker.proceed === 'function') leaveBlocker.proceed()
   }
 
@@ -439,11 +523,74 @@ export function ThemePage() {
     if (selectedTermId && selectedPoolKey) {
       updateSearchTermInPool(selectedPoolKey, selectedTermId, updated)
       handleCloseModal()
+      const s = useTopicStore.getState().data.search
+      const list =
+        selectedPoolKey === 'keyword'
+          ? s.keywordTerms
+          : selectedPoolKey === 'must'
+            ? s.mustTerms
+            : s.excludeTerms
+      const term = list.find((t) => t.id === selectedTermId)
+      if (term) void saveSingleTermToBackend(selectedPoolKey, term)
     }
+  }
+
+  const handleAddKeyword = (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    addSearchKeyword(trimmed)
+    const terms = useTopicStore.getState().data.search.keywordTerms
+    const added = terms.find(
+      (t) => t.text.toLowerCase() === trimmed.toLowerCase()
+    )
+    if (added) void saveSingleTermToBackend('keyword', added)
+  }
+
+  const handleAddMustTerm = (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    addSearchMustTerm(trimmed)
+    const terms = useTopicStore.getState().data.search.mustTerms
+    const added = terms.find(
+      (t) => t.text.toLowerCase() === trimmed.toLowerCase()
+    )
+    if (added) void saveSingleTermToBackend('must', added)
+  }
+
+  const handleAddExcludeTerm = (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    addSearchExcludeTerm(trimmed)
+    const terms = useTopicStore.getState().data.search.excludeTerms
+    const added = terms.find(
+      (t) => t.text.toLowerCase() === trimmed.toLowerCase()
+    )
+    if (added) void saveSingleTermToBackend('exclude', added)
+  }
+
+  const handleRemoveKeyword = (termId: string) => {
+    removeSearchKeyword(termId)
+    void saveSingleTermDeleteToBackend('keyword', termId)
+  }
+
+  const handleRemoveMustTerm = (termId: string) => {
+    removeSearchMustTerm(termId)
+    void saveSingleTermDeleteToBackend('must', termId)
+  }
+
+  const handleRemoveExcludeTerm = (termId: string) => {
+    removeSearchExcludeTerm(termId)
+    void saveSingleTermDeleteToBackend('exclude', termId)
+  }
+
+  const handleSuggestKeywords = async () => {
+    await suggestThemeFromDescription()
+    await saveTermsToBackend()
   }
 
   const handleSaveQuery = () => {
     saveCurrentQuery()
+    void saveSearchQueriesToBackend()
   }
 
   const handleNewQuery = () => {
@@ -457,6 +604,7 @@ export function ThemePage() {
   const handleNewQueryConfirm = (save: boolean) => {
     setShowNewQueryConfirm(false)
     newQueryAfterConfirm(save)
+    if (save) void saveSearchQueriesToBackend()
   }
 
   const handleDeleteQuery = (index: 1 | 2 | 3) => {
@@ -466,6 +614,7 @@ export function ThemePage() {
   const handleDeleteQueryConfirm = (confirmed: boolean) => {
     if (confirmed && showDeleteConfirm !== null) {
       deleteSavedQuery(showDeleteConfirm)
+      void saveSearchQueriesToBackend()
     }
     setShowDeleteConfirm(null)
   }
@@ -530,6 +679,7 @@ export function ThemePage() {
           response.translations
         )
       }
+      await saveTermsToBackend()
     } catch (e) {
       const message =
         e instanceof Error ? e.message : 'Ошибка при переводе ключевых слов'
@@ -558,10 +708,206 @@ export function ThemePage() {
     await runTranslation(termsToTranslate)
   }
 
+  const handleCreateTheme = async () => {
+    const description = theme.description?.trim() ?? ''
+    if (!description) {
+      setCreateError('Введите описание темы')
+      return
+    }
+    setCreateError(null)
+    setIsCreating(true)
+    try {
+      const titleResponse = await themesApi.prepareTitle({ description })
+      const title = titleResponse.title?.trim() || 'Без названия'
+      const currentDescription =
+        useTopicStore.getState().data.theme.description?.trim() ?? description
+      const defaultLang = getDefaultLanguage()
+      const createResponse = await themesApi.createThemeMinimal({
+        title,
+        description: currentDescription || 'Нет описания',
+        languages: [defaultLang],
+      })
+      const fullTheme = await themesApi.getTheme(createResponse.id)
+      loadThemeFromApi(fullTheme)
+      const listResponse = await themesApi.getThemes()
+      setThemesForNav(listResponse.themes ?? [])
+    } catch (e) {
+      const message =
+        e instanceof Error ? e.message : 'Не удалось создать тему'
+      setCreateError(message)
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  if (isCreateMode) {
+    return (
+      <div className="theme-page">
+        <section className="theme-page__block">
+          <label className="theme-page__label">Описание темы</label>
+          <textarea
+            className="theme-page__textarea"
+            value={theme.description}
+            onChange={(e) => setThemeDescription(e.target.value)}
+            placeholder="Опишите тему..."
+            rows={4}
+            disabled={isCreating}
+          />
+        </section>
+        <section className="theme-page__block">
+          <button
+            type="button"
+            className="theme-page__suggest-btn"
+            onClick={handleCreateTheme}
+            disabled={isCreating || (theme.description?.trim() ?? '').length < 1}
+          >
+            {isCreating ? 'Создание…' : 'Создать тему'}
+          </button>
+          {createError && (
+            <span className="theme-page__suggest-error" role="alert">
+              {createError}
+            </span>
+          )}
+        </section>
+      </div>
+    )
+  }
+
+  const handleTitleBlur = async () => {
+    if (!activeTopicId || !theme.title.trim()) return
+    try {
+      await themesApi.patchTheme(activeTopicId, {
+        title: theme.title.trim(),
+      })
+      setStatusLoaded()
+      const listResponse = await themesApi.getThemes()
+      setThemesForNav(listResponse.themes ?? [])
+    } catch {
+      // ошибка сохранения названия — тихо игнорируем
+    }
+  }
+
+  const handleDescriptionBlur = async () => {
+    if (!activeTopicId) return
+    const desc = theme.description?.trim() ?? ''
+    try {
+      await themesApi.patchTheme(activeTopicId, {
+        description: desc || 'Нет описания',
+      })
+      setStatusLoaded()
+    } catch {
+      // ошибка сохранения описания
+    }
+  }
+
+  const handleLanguagesChange = async () => {
+    if (!activeTopicId) return
+    const langs = useTopicStore.getState().data.theme.languages
+    if (langs.length === 0) return
+    try {
+      await themesApi.patchTheme(activeTopicId, { languages: langs })
+      setStatusLoaded()
+    } catch {
+      // ошибка сохранения языков
+    }
+  }
+
+  /** Отправить на бэкенд удаление одного термина в указанном пуле */
+  const saveSingleTermDeleteToBackend = async (
+    pool: 'keyword' | 'must' | 'exclude',
+    termId: string
+  ) => {
+    if (!activeTopicId) return
+    const payload =
+      pool === 'keyword'
+        ? { keyword_terms: { add_or_update: [], delete_ids: [termId] } }
+        : pool === 'must'
+          ? { must_have_terms: { add_or_update: [], delete_ids: [termId] } }
+          : { exclude_terms: { add_or_update: [], delete_ids: [termId] } }
+    try {
+      await themesApi.patchTheme(activeTopicId, payload)
+      setStatusLoaded()
+    } catch {
+      // ошибка удаления термина
+    }
+  }
+
+  /** Отправить на бэкенд один термин (добавление или изменение) в указанном пуле */
+  const saveSingleTermToBackend = async (
+    pool: 'keyword' | 'must' | 'exclude',
+    term: Term
+  ) => {
+    if (!activeTopicId) return
+    const payload =
+      pool === 'keyword'
+        ? { keyword_terms: { add_or_update: [termToDto(term)], delete_ids: [] } }
+        : pool === 'must'
+          ? {
+              must_have_terms: {
+                add_or_update: [termToDto(term)],
+                delete_ids: [],
+              },
+            }
+          : {
+              exclude_terms: {
+                add_or_update: [termToDto(term)],
+                delete_ids: [],
+              },
+            }
+    try {
+      await themesApi.patchTheme(activeTopicId, payload)
+      setStatusLoaded()
+    } catch {
+      // ошибка сохранения термина
+    }
+  }
+
+  /** Отправить на бэкенд весь пул терминов (после ИИ или перевода) */
+  const saveTermsToBackend = async () => {
+    if (!activeTopicId) return
+    const s = useTopicStore.getState().data.search
+    try {
+      await themesApi.patchTheme(activeTopicId, {
+        keyword_terms: {
+          add_or_update: s.keywordTerms.map(termToDto),
+          delete_ids: [],
+        },
+        must_have_terms: {
+          add_or_update: s.mustTerms.map(termToDto),
+          delete_ids: [],
+        },
+        exclude_terms: {
+          add_or_update: s.excludeTerms.map(termToDto),
+          delete_ids: [],
+        },
+      })
+      setStatusLoaded()
+    } catch {
+      // ошибка сохранения терминов
+    }
+  }
+
+  const saveSearchQueriesToBackend = async () => {
+    if (!activeTopicId) return
+    const q = useTopicStore.getState().data.search.queries
+    const search_queries: Record<string, { keywords: typeof draft.keywords; must: typeof draft.must; exclude: typeof draft.exclude } | null> =
+      {}
+    for (let i = 1; i <= 3; i++) {
+      const slot = q[i as 1 | 2 | 3]
+      search_queries[String(i)] = slot
+        ? { keywords: slot.keywords, must: slot.must, exclude: slot.exclude }
+        : null
+    }
+    try {
+      await themesApi.patchTheme(activeTopicId, { search_queries })
+      setStatusLoaded()
+    } catch {
+      // ошибка сохранения запросов
+    }
+  }
+
   return (
     <div className="theme-page">
-      <h1 className="theme-page__heading">Тема</h1>
-
       <section className="theme-page__block">
         <label className="theme-page__label">Название темы</label>
         <input
@@ -569,6 +915,7 @@ export function ThemePage() {
           className="theme-page__input"
           value={theme.title}
           onChange={(e) => setThemeTitle(e.target.value)}
+          onBlur={handleTitleBlur}
           placeholder="Введите название"
         />
       </section>
@@ -579,13 +926,14 @@ export function ThemePage() {
           className="theme-page__textarea"
           value={theme.description}
           onChange={(e) => setThemeDescription(e.target.value)}
+          onBlur={handleDescriptionBlur}
           placeholder="Опишите тему..."
           rows={4}
         />
       </section>
 
       <section className="theme-page__block">
-        <LanguagesBlock />
+        <LanguagesBlock onLanguagesChange={handleLanguagesChange} />
       </section>
 
       <section className="theme-page__block">
@@ -593,7 +941,7 @@ export function ThemePage() {
           <button
             type="button"
             className="theme-page__suggest-btn"
-            onClick={() => suggestThemeFromDescription()}
+            onClick={() => void handleSuggestKeywords()}
             disabled={
               aiSuggest.isLoading ||
               theme.description.trim().length < 3 ||
@@ -602,7 +950,7 @@ export function ThemePage() {
           >
             {aiSuggest.isLoading
               ? 'Загрузка...'
-              : 'Предложить название темы, ключевые слова'}
+              : 'Предложить ключевые слова'}
           </button>
           {aiSuggest.error && (
             <span className="theme-page__suggest-error" role="alert">
@@ -620,9 +968,10 @@ export function ThemePage() {
           <h3 className="theme-page__section-title">Ключевые слова</h3>
           <UnusedKeywordsBlock
             terms={unusedKeywords}
-            onAdd={addSearchKeyword}
+            onAdd={handleAddKeyword}
             onMoveToGroup={moveKeywordToGroup}
             onTermClick={(id) => openTermModal(id, 'keyword')}
+            onRemove={handleRemoveKeyword}
             groupCount={draft.keywords.groups.length}
             inputOnly
           />
@@ -632,9 +981,10 @@ export function ThemePage() {
           </p>
           <UnusedKeywordsBlock
             terms={unusedKeywords}
-            onAdd={addSearchKeyword}
+            onAdd={handleAddKeyword}
             onMoveToGroup={moveKeywordToGroup}
             onTermClick={(id) => openTermModal(id, 'keyword')}
+            onRemove={handleRemoveKeyword}
             groupCount={draft.keywords.groups.length}
             listOnly
           />
@@ -653,6 +1003,7 @@ export function ThemePage() {
                 onConnectorChange={(op) => setDraftConnector(i - 1, op)}
                 onMoveToUnused={moveKeywordToUnused}
                 onTermClick={(termId) => openTermModal(termId, 'keyword')}
+                onRemove={handleRemoveKeyword}
                 onRemoveGroup={() => removeDraftKeywordGroup(i)}
                 canRemoveGroup={draft.keywords.groups.length > 1}
               />
@@ -672,9 +1023,10 @@ export function ThemePage() {
           <h3 className="theme-page__section-title">Обязательные слова (MUST)</h3>
           <UnusedTermsList
             terms={unusedMust}
-            onAdd={addSearchMustTerm}
+            onAdd={handleAddMustTerm}
             onMoveToGroup={moveMustToGroup}
             onTermClick={(id) => openTermModal(id, 'must')}
+            onRemove={handleRemoveMustTerm}
             placeholder="Добавить обязательное слово"
             moveLabel="В запрос"
             inputOnly
@@ -682,9 +1034,10 @@ export function ThemePage() {
           <label className="theme-page__label">Неиспользуемые обязательные слова</label>
           <UnusedTermsList
             terms={unusedMust}
-            onAdd={addSearchMustTerm}
+            onAdd={handleAddMustTerm}
             onMoveToGroup={moveMustToGroup}
             onTermClick={(id) => openTermModal(id, 'must')}
+            onRemove={handleRemoveMustTerm}
             placeholder="Добавить обязательное слово"
             moveLabel="В запрос"
             listOnly
@@ -714,6 +1067,7 @@ export function ThemePage() {
             terms={mustTermsInQuery}
             onMoveToUnused={moveMustToUnused}
             onTermClick={(id) => openTermModal(id, 'must')}
+            onRemove={handleRemoveMustTerm}
           />
         </div>
 
@@ -722,9 +1076,10 @@ export function ThemePage() {
           <h3 className="theme-page__section-title">Минус-слова (NOT)</h3>
           <UnusedTermsList
             terms={unusedExclude}
-            onAdd={addSearchExcludeTerm}
+            onAdd={handleAddExcludeTerm}
             onMoveToGroup={moveExcludeToGroup}
             onTermClick={(id) => openTermModal(id, 'exclude')}
+            onRemove={handleRemoveExcludeTerm}
             placeholder="Добавить минус-слово"
             moveLabel="В запрос"
             inputOnly
@@ -732,9 +1087,10 @@ export function ThemePage() {
           <label className="theme-page__label">Неиспользуемые минус-слова</label>
           <UnusedTermsList
             terms={unusedExclude}
-            onAdd={addSearchExcludeTerm}
+            onAdd={handleAddExcludeTerm}
             onMoveToGroup={moveExcludeToGroup}
             onTermClick={(id) => openTermModal(id, 'exclude')}
+            onRemove={handleRemoveExcludeTerm}
             placeholder="Добавить минус-слово"
             moveLabel="В запрос"
             listOnly
@@ -743,6 +1099,7 @@ export function ThemePage() {
             terms={excludeTermsInQuery}
             onMoveToUnused={moveExcludeToUnused}
             onTermClick={(id) => openTermModal(id, 'exclude')}
+            onRemove={handleRemoveExcludeTerm}
           />
         </div>
 
@@ -776,7 +1133,7 @@ export function ThemePage() {
           <button
             type="button"
             className="theme-page__btn-secondary"
-            disabled={savedQueries.length === 0}
+            disabled={savedQueries.length === 0 || search.editingQueryIndex !== null}
             onClick={handleNewQuery}
           >
             Новый запрос

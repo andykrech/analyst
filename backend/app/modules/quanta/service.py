@@ -18,8 +18,10 @@ from app.modules.quanta.schemas import QuantumCreate
 
 BATCH_SIZE = 5
 QUANTA_TRANSLATE_PROMPT = "quanta.translate_fields.v1"
+QUANTA_RELEVANCE_SCORE_PROMPT = "quanta.relevance_score.v1"
 # Лимит токенов ответа на один батч перевода (чтобы не ждать бесконечно)
 TRANSLATE_MAX_TOKENS = 8192
+RELEVANCE_SCORE_MAX_TOKENS = 4096
 
 
 class _FakeQuantumForTranslate:
@@ -59,11 +61,15 @@ async def save_quanta_from_search(
     items: list[QuantumCreate],
     run_id: uuid.UUID | None = None,
     translations_by_index: dict[int, dict[str, Any]] | None = None,
-) -> int:
+    relevance_by_index: dict[int, dict[str, Any]] | None = None,
+) -> list[Quantum]:
     """
     Сохранить кванты, полученные поиском, в БД (upsert по theme_id + dedup_key).
     Если передан translations_by_index (индекс в items -> переводы), заполняются
     title_translated, summary_text_translated, key_points_translated.
+    Если передан relevance_by_index (индекс -> {opinion_score, total_score}), заполняются
+    opinion_score и total_score.
+    Возвращает список созданных/обновлённых Quantum в том же порядке, что и items (пропуски не возвращаются).
     """
     logger = logging.getLogger(__name__)
     n_with_translation = sum(1 for i in range(len(items)) if (translations_by_index or {}).get(i))
@@ -72,15 +78,21 @@ async def save_quanta_from_search(
         len(items),
         n_with_translation,
     )
-    saved = 0
+    created: list[Quantum] = []
     trans = translations_by_index or {}
+    rel_by_idx = relevance_by_index or {}
     for i, q in enumerate(items):
         theme_id = _uuid_or_none(q.theme_id)
         if not theme_id:
             continue
         identifiers_dict = [x.model_dump() for x in q.identifiers] if q.identifiers else []
         t = trans.get(i)
-        await create_quantum(
+        rel = rel_by_idx.get(i)
+        opinion_score = rel.get("opinion_score") if isinstance(rel, dict) else None
+        total_score = rel.get("total_score") if isinstance(rel, dict) else None
+        if opinion_score is not None and not isinstance(opinion_score, list):
+            opinion_score = None
+        row = await create_quantum(
             session,
             theme_id=theme_id,
             run_id=run_id or _uuid_or_none(q.run_id),
@@ -99,6 +111,8 @@ async def save_quanta_from_search(
             matched_term_ids=q.matched_term_ids or [],
             retriever_query=q.retriever_query,
             rank_score=q.rank_score,
+            opinion_score=opinion_score,
+            total_score=total_score if isinstance(total_score, (int, float)) else None,
             source_system=q.source_system,
             site_id=_uuid_or_none(q.site_id),
             retriever_name=q.retriever_name,
@@ -110,9 +124,9 @@ async def save_quanta_from_search(
             summary_text_translated=t.get("summary_text_translated") if t else None,
             key_points_translated=t.get("key_points_translated") if t else None,
         )
-        saved += 1
-    logger.info("search/save_quanta: записано квантов=%s", saved)
-    return saved
+        created.append(row)
+    logger.info("search/save_quanta: записано квантов=%s", len(created))
+    return created
 
 
 async def upsert_quantum_in_theme(
@@ -137,6 +151,8 @@ async def upsert_quantum_in_theme(
     matched_term_ids: list[str] | None = None,
     retriever_query: str | None = None,
     rank_score: float | None = None,
+    opinion_score: list[dict[str, Any]] | None = None,
+    total_score: float | None = None,
     site_id: uuid.UUID | None = None,
     retriever_version: str | None = None,
     attrs: dict[str, Any] | None = None,
@@ -163,6 +179,8 @@ async def upsert_quantum_in_theme(
         matched_term_ids=matched_term_ids,
         retriever_query=retriever_query,
         rank_score=rank_score,
+        opinion_score=opinion_score,
+        total_score=total_score,
         source_system=source_system,
         site_id=site_id,
         retriever_name=retriever_name,
@@ -330,4 +348,127 @@ async def translate_quanta_create_items(
         if tid is not None and str(tid).isdigit():
             by_index[int(tid)] = t
     return by_index
+
+
+def _clamp_score(value: Any) -> float | None:
+    """Привести значение к float в [0, 1] или None."""
+    if value is None:
+        return None
+    try:
+        x = float(value)
+        if 0 <= x <= 1:
+            return x
+        return max(0.0, min(1.0, x))
+    except (TypeError, ValueError):
+        return None
+
+
+async def score_quanta_relevance(
+    theme_description: str,
+    items: list[QuantumCreate],
+    model_names: list[str],
+    llm_service: LLMService,
+    prompt_service: PromptService,
+) -> list[dict[str, Any]]:
+    """
+    Оценка релевантности квантов теме от нескольких моделей ИИ.
+
+    В запрос к ИИ передаются только описание темы и нумерованный список заголовков (title).
+    Ответ модели — JSON вида {"1": 0.5, "2": 0.1, ...}. Номер соответствует индексу кванта (1-based).
+
+    Возвращает список той же длины, что и items: для каждого кванта
+    {"opinion_score": [{"model": str, "score": float}, ...], "total_score": float}.
+    total_score — среднее арифметическое rank_score (если есть) и всех score из opinion_score.
+    """
+    logger = logging.getLogger(__name__)
+    if not items or not model_names:
+        return [{"opinion_score": [], "total_score": None} for _ in items] if items else []
+
+    titles_list = "\n".join(f"{i}. { (q.title or '').strip() or '(без заголовка)' }" for i, q in enumerate(items, 1))
+    vars_for_prompt = {
+        "theme_description": (theme_description or "").strip() or "(описание темы не задано)",
+        "titles_list": titles_list,
+    }
+
+    # По каждой модели — один вызов, ответ {"1": 0.5, "2": 0.1, ...}
+    scores_by_model: list[tuple[str, dict[str, float]]] = []  # (model_name, {index_str -> score})
+    for model_name in model_names:
+        model_key = (model_name or "").strip().lower()
+        if not model_key:
+            continue
+        try:
+            response = await llm_service.generate_from_prompt(
+                QUANTA_RELEVANCE_SCORE_PROMPT,
+                vars_for_prompt,
+                prompt_service,
+                provider=model_key,
+                generation={"max_tokens": RELEVANCE_SCORE_MAX_TOKENS},
+            )
+        except Exception as e:
+            logger.warning(
+                "score_quanta_relevance: вызов модели %s не удался: %s",
+                model_key,
+                e,
+            )
+            continue
+
+        text = (response.text or "").strip()
+        if not text:
+            continue
+        if text.startswith("```"):
+            lines = text.splitlines()
+            if lines[0].strip().startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            text = "\n".join(lines)
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as e:
+            logger.warning("score_quanta_relevance: модель %s вернула не JSON: %s", model_key, e)
+            continue
+
+        parsed: dict[str, float] = {}
+        for k, v in (data if isinstance(data, dict) else {}).items():
+            key = str(k).strip()
+            if not key.isdigit():
+                continue
+            s = _clamp_score(v)
+            if s is not None:
+                parsed[key] = s
+        scores_by_model.append((model_key, parsed))
+
+    # Собираем opinion_score и total_score для каждого кванта (по индексу 0..len(items)-1)
+    result: list[dict[str, Any]] = []
+    for i in range(len(items)):
+        q = items[i]
+        idx_str = str(i + 1)
+        opinion_score: list[dict[str, Any]] = []
+        for model_key, scores in scores_by_model:
+            s = scores.get(idx_str)
+            if s is not None:
+                opinion_score.append({"model": model_key, "score": s})
+
+        values_for_mean: list[float] = []
+        if q.rank_score is not None:
+            try:
+                r = float(q.rank_score)
+                if 0 <= r <= 1:
+                    values_for_mean.append(r)
+                else:
+                    values_for_mean.append(max(0.0, min(1.0, r)))
+            except (TypeError, ValueError):
+                pass
+        for o in opinion_score:
+            sc = o.get("score")
+            if sc is not None:
+                values_for_mean.append(float(sc))
+
+        total_score: float | None = None
+        if values_for_mean:
+            total_score = sum(values_for_mean) / len(values_for_mean)
+
+        result.append({"opinion_score": opinion_score, "total_score": total_score})
+
+    return result
 

@@ -299,6 +299,9 @@ interface TopicStore {
   addSearchKeyword: (text: string) => void
   addSearchMustTerm: (text: string) => void
   addSearchExcludeTerm: (text: string) => void
+  removeSearchKeyword: (termId: string) => void
+  removeSearchMustTerm: (termId: string) => void
+  removeSearchExcludeTerm: (termId: string) => void
   updateSearchTermInPool: (
     pool: 'keyword' | 'must' | 'exclude',
     termId: string,
@@ -863,16 +866,16 @@ export const useTopicStore = create<TopicStore>((set) => ({
     set((s) => {
       const search = s.data.search
       const nextDraft = updater(search.queries[0])
-      const isEditing = search.editingQueryIndex !== null
+      const isEditingSaved = search.editingQueryIndex !== null
       return {
         ...s,
-        status: 'dirty',
+        status: isEditingSaved ? s.status : 'dirty',
         data: {
           ...s.data,
           search: {
             ...search,
             queries: [nextDraft, search.queries[1], search.queries[2], search.queries[3]],
-            isEditingDraft: isEditing ? true : search.isEditingDraft,
+            isEditingDraft: isEditingSaved ? search.isEditingDraft : true,
           },
         },
       }
@@ -921,7 +924,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
             ...search,
             queries: next,
             isEditingDraft: false,
-            editingQueryIndex: wasEditingSaved ? search.editingQueryIndex : targetIndex,
+            editingQueryIndex: null,
           },
         },
       }
@@ -1081,6 +1084,102 @@ export const useTopicStore = create<TopicStore>((set) => ({
       }
     }),
 
+  removeSearchKeyword: (termId) =>
+    set((s) => {
+      const search = s.data.search
+      const keywordTerms = search.keywordTerms.filter((t) => t.id !== termId)
+      const stripFromQuery = (q: SavedQuery): SavedQuery => ({
+        ...q,
+        keywords: {
+          ...q.keywords,
+          groups: q.keywords.groups.map((g) => ({
+            ...g,
+            termIds: g.termIds.filter((id) => id !== termId),
+          })),
+        },
+      })
+      const queries: SearchData['queries'] = [
+        stripFromQuery(search.queries[0]),
+        search.queries[1] ? stripFromQuery(search.queries[1]) : null,
+        search.queries[2] ? stripFromQuery(search.queries[2]) : null,
+        search.queries[3] ? stripFromQuery(search.queries[3]) : null,
+      ]
+      return {
+        ...s,
+        status: 'dirty',
+        data: {
+          ...s.data,
+          search: {
+            ...search,
+            keywordTerms,
+            queries,
+          },
+        },
+      }
+    }),
+
+  removeSearchMustTerm: (termId) =>
+    set((s) => {
+      const search = s.data.search
+      const mustTerms = search.mustTerms.filter((t) => t.id !== termId)
+      const stripFromQuery = (q: SavedQuery): SavedQuery => ({
+        ...q,
+        must: {
+          ...q.must,
+          termIds: q.must.termIds.filter((id) => id !== termId),
+        },
+      })
+      const queries: SearchData['queries'] = [
+        stripFromQuery(search.queries[0]),
+        search.queries[1] ? stripFromQuery(search.queries[1]) : null,
+        search.queries[2] ? stripFromQuery(search.queries[2]) : null,
+        search.queries[3] ? stripFromQuery(search.queries[3]) : null,
+      ]
+      return {
+        ...s,
+        status: 'dirty',
+        data: {
+          ...s.data,
+          search: {
+            ...search,
+            mustTerms,
+            queries,
+          },
+        },
+      }
+    }),
+
+  removeSearchExcludeTerm: (termId) =>
+    set((s) => {
+      const search = s.data.search
+      const excludeTerms = search.excludeTerms.filter((t) => t.id !== termId)
+      const stripFromQuery = (q: SavedQuery): SavedQuery => ({
+        ...q,
+        exclude: {
+          ...q.exclude,
+          termIds: q.exclude.termIds.filter((id) => id !== termId),
+        },
+      })
+      const queries: SearchData['queries'] = [
+        stripFromQuery(search.queries[0]),
+        search.queries[1] ? stripFromQuery(search.queries[1]) : null,
+        search.queries[2] ? stripFromQuery(search.queries[2]) : null,
+        search.queries[3] ? stripFromQuery(search.queries[3]) : null,
+      ]
+      return {
+        ...s,
+        status: 'dirty',
+        data: {
+          ...s.data,
+          search: {
+            ...search,
+            excludeTerms,
+            queries,
+          },
+        },
+      }
+    }),
+
   updateSearchTermInPool: (pool, termId, patch) =>
     set((s) => {
       const key =
@@ -1131,7 +1230,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
       const search = s.data.search
       return {
         ...s,
-        status: 'dirty',
+        status: search.editingQueryIndex !== null ? s.status : 'dirty',
         data: {
           ...s.data,
           search: {
@@ -1148,7 +1247,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
               search.queries[2],
               search.queries[3],
             ],
-            isEditingDraft: search.editingQueryIndex !== null ? true : search.isEditingDraft,
+            isEditingDraft: search.editingQueryIndex !== null ? search.isEditingDraft : true,
           },
         },
       }
@@ -1168,7 +1267,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
       const search = s.data.search
       return {
         ...s,
-        status: 'dirty',
+        status: search.editingQueryIndex !== null ? s.status : 'dirty',
         data: {
           ...s.data,
           search: {
@@ -1182,7 +1281,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
               search.queries[2],
               search.queries[3],
             ],
-            isEditingDraft: search.editingQueryIndex !== null ? true : search.isEditingDraft,
+            isEditingDraft: search.editingQueryIndex !== null ? search.isEditingDraft : true,
           },
         },
       }
@@ -1197,7 +1296,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
       )
       return {
         ...s,
-        status: 'dirty',
+        status: search.editingQueryIndex !== null ? s.status : 'dirty',
         data: {
           ...s.data,
           search: {
@@ -1211,7 +1310,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
               search.queries[2],
               search.queries[3],
             ],
-            isEditingDraft: search.editingQueryIndex !== null ? true : search.isEditingDraft,
+            isEditingDraft: search.editingQueryIndex !== null ? search.isEditingDraft : true,
           },
         },
       }
@@ -1226,7 +1325,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
       )
       return {
         ...s,
-        status: 'dirty',
+        status: search.editingQueryIndex !== null ? s.status : 'dirty',
         data: {
           ...s.data,
           search: {
@@ -1240,7 +1339,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
               search.queries[2],
               search.queries[3],
             ],
-            isEditingDraft: search.editingQueryIndex !== null ? true : search.isEditingDraft,
+            isEditingDraft: search.editingQueryIndex !== null ? search.isEditingDraft : true,
           },
         },
       }
@@ -1262,7 +1361,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
           : [...draft.keywords.connectors, 'AND']
       return {
         ...s,
-        status: 'dirty',
+        status: search.editingQueryIndex !== null ? s.status : 'dirty',
         data: {
           ...s.data,
           search: {
@@ -1276,7 +1375,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
               search.queries[2],
               search.queries[3],
             ],
-            isEditingDraft: search.editingQueryIndex !== null ? true : search.isEditingDraft,
+            isEditingDraft: search.editingQueryIndex !== null ? search.isEditingDraft : true,
           },
         },
       }
@@ -1308,7 +1407,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
       const search = s.data.search
       return {
         ...s,
-        status: 'dirty',
+        status: search.editingQueryIndex !== null ? s.status : 'dirty',
         data: {
           ...s.data,
           search: {
@@ -1319,7 +1418,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
               search.queries[2],
               search.queries[3],
             ],
-            isEditingDraft: search.editingQueryIndex !== null ? true : search.isEditingDraft,
+            isEditingDraft: search.editingQueryIndex !== null ? search.isEditingDraft : true,
           },
         },
       }
@@ -1330,7 +1429,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
       const search = s.data.search
       return {
         ...s,
-        status: 'dirty',
+        status: search.editingQueryIndex !== null ? s.status : 'dirty',
         data: {
           ...s.data,
           search: {
@@ -1341,7 +1440,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
               search.queries[2],
               search.queries[3],
             ],
-            isEditingDraft: search.editingQueryIndex !== null ? true : search.isEditingDraft,
+            isEditingDraft: search.editingQueryIndex !== null ? search.isEditingDraft : true,
           },
         },
       }
@@ -1356,7 +1455,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
         : [...draft.must.termIds, termId]
       return {
         ...s,
-        status: 'dirty',
+        status: search.editingQueryIndex !== null ? s.status : 'dirty',
         data: {
           ...s.data,
           search: {
@@ -1367,7 +1466,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
               search.queries[2],
               search.queries[3],
             ],
-            isEditingDraft: search.editingQueryIndex !== null ? true : search.isEditingDraft,
+            isEditingDraft: search.editingQueryIndex !== null ? search.isEditingDraft : true,
           },
         },
       }
@@ -1380,7 +1479,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
       const ids = draft.must.termIds.filter((id) => id !== termId)
       return {
         ...s,
-        status: 'dirty',
+        status: search.editingQueryIndex !== null ? s.status : 'dirty',
         data: {
           ...s.data,
           search: {
@@ -1391,7 +1490,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
               search.queries[2],
               search.queries[3],
             ],
-            isEditingDraft: search.editingQueryIndex !== null ? true : search.isEditingDraft,
+            isEditingDraft: search.editingQueryIndex !== null ? search.isEditingDraft : true,
           },
         },
       }
@@ -1406,7 +1505,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
         : [...draft.exclude.termIds, termId]
       return {
         ...s,
-        status: 'dirty',
+        status: search.editingQueryIndex !== null ? s.status : 'dirty',
         data: {
           ...s.data,
           search: {
@@ -1417,7 +1516,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
               search.queries[2],
               search.queries[3],
             ],
-            isEditingDraft: search.editingQueryIndex !== null ? true : search.isEditingDraft,
+            isEditingDraft: search.editingQueryIndex !== null ? search.isEditingDraft : true,
           },
         },
       }
@@ -1430,7 +1529,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
       const ids = draft.exclude.termIds.filter((id) => id !== termId)
       return {
         ...s,
-        status: 'dirty',
+        status: search.editingQueryIndex !== null ? s.status : 'dirty',
         data: {
           ...s.data,
           search: {
@@ -1441,7 +1540,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
               search.queries[2],
               search.queries[3],
             ],
-            isEditingDraft: search.editingQueryIndex !== null ? true : search.isEditingDraft,
+            isEditingDraft: search.editingQueryIndex !== null ? search.isEditingDraft : true,
           },
         },
       }

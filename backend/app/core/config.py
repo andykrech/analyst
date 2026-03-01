@@ -153,6 +153,29 @@ class Settings:
     YANDEX_OPERATION_POLL_ATTEMPTS: int = _int("YANDEX_OPERATION_POLL_ATTEMPTS", 10)
     YANDEX_OPERATION_POLL_INTERVAL_SECONDS: float = _float("YANDEX_OPERATION_POLL_INTERVAL_SECONDS", 0.5)
 
+    # Туннель (прокси) для части интеграций (например OpenAI Embeddings).
+    # URL в формате socks5://[user:password@]host:port или http://...; пусто — без прокси.
+    TUNNEL_PROXY_URL: str = _str("TUNNEL_PROXY_URL", "")
+
+    # OpenAI (эмбеддинги и др.); ключ — заглушка, подставить свой в .env
+    OPENAI_API_KEY: SecretStr = SecretStr(_str("OPENAI_API_KEY", ""))
+    OPENAI_BASE_URL: str = _str("OPENAI_BASE_URL", "https://api.openai.com")
+    OPENAI_EMBEDDING_TIMEOUT_S: int = _int("OPENAI_EMBEDDING_TIMEOUT_S", 30)
+    OPENAI_EMBEDDING_MAX_RETRIES: int = _int("OPENAI_EMBEDDING_MAX_RETRIES", 3)
+    OPENAI_EMBEDDING_RETRY_DELAY_S: float = _float("OPENAI_EMBEDDING_RETRY_DELAY_S", 2.0)
+
+    # Эмбеддинги: провайдер по умолчанию, модель, размерность, стоимость за 1 токен (для оценки)
+    EMBEDDING_PROVIDER: str = _str("EMBEDDING_PROVIDER", "openai")
+    EMBEDDING_MODEL: str = _str("EMBEDDING_MODEL", "text-embedding-3-small")
+    EMBEDDING_DIMENSIONS: int = _int("EMBEDDING_DIMENSIONS", 1536)
+    EMBEDDING_COST_PER_TOKEN: Decimal = _decimal("EMBEDDING_COST_PER_TOKEN", 0)
+
+    # Двухуровневая фильтрация квантов:
+    # 1) По векторам: rank_score >= EMBEDDING_QUANTUM_RELEVANCE_THRESHOLD (-1..1, косинус); ниже — не запрашиваем ИИ и не сохраняем.
+    EMBEDDING_QUANTUM_RELEVANCE_THRESHOLD: float = _float("EMBEDDING_QUANTUM_RELEVANCE_THRESHOLD", -1.0)
+    # 2) По итогу ИИ: total_score >= QUANTUM_RELEVANCE_THRESHOLD (0..1); ниже — не сохраняем.
+    QUANTUM_RELEVANCE_THRESHOLD: float = _float("QUANTUM_RELEVANCE_THRESHOLD", 0.0)
+
     # Промпты: провайдер (file | db), директория, алиасы, TTL кеша
     PROMPT_PROVIDER: str = _str("PROMPT_PROVIDER", "file")
     PROMPT_FILES_DIR: str = _str("PROMPT_FILES_DIR", "app/prompts/prompts")

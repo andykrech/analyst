@@ -51,28 +51,24 @@ class Theme(Base):
         nullable=False,
         comment="Исходное текстовое описание темы, сформулированное пользователем",
     )
-    keywords: Mapped[list] = mapped_column(
+    keywords: Mapped[Optional[list]] = mapped_column(
         JSONB,
-        nullable=False,
-        server_default=text("'[]'::jsonb"),
+        nullable=True,
         comment="Список ключевых слов и фраз для поиска информации по теме",
     )
-    must_have: Mapped[list] = mapped_column(
+    must_have: Mapped[Optional[list]] = mapped_column(
         JSONB,
-        nullable=False,
-        server_default=text("'[]'::jsonb"),
+        nullable=True,
         comment="Обязательные слова или сущности в найденных материалах",
     )
-    exclude: Mapped[list] = mapped_column(
+    exclude: Mapped[Optional[list]] = mapped_column(
         JSONB,
-        nullable=False,
-        server_default=text("'[]'::jsonb"),
+        nullable=True,
         comment="Минус-слова и фразы, исключаемые из поиска",
     )
-    languages: Mapped[list] = mapped_column(
+    languages: Mapped[Optional[list]] = mapped_column(
         JSONB,
-        nullable=False,
-        server_default=text("'[]'::jsonb"),
+        nullable=True,
         comment="Список языков источников и поиска (например, [\"ru\", \"en\"])",
     )
     region: Mapped[Optional[str]] = mapped_column(

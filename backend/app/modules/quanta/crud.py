@@ -107,6 +107,10 @@ def build_upsert_stmt(
     def take_new_if_not_null(col: sa.ColumnElement, new_val: sa.ColumnElement) -> sa.ColumnElement:
         return sa.case((new_val.isnot(None), new_val), else_=col)
 
+    def take_new_if_not_null_jsonb(col: sa.ColumnElement, new_val: sa.ColumnElement) -> sa.ColumnElement:
+        # Для JSONB: перезаписываем, если новый не NULL и не пустой массив
+        return sa.case((new_val.isnot(None), new_val), else_=col)
+
     def fill_if_empty_text(col: sa.ColumnElement, new_val: sa.ColumnElement) -> sa.ColumnElement:
         return sa.case(((col == ""), new_val), else_=col)
 
@@ -126,6 +130,8 @@ def build_upsert_stmt(
         "date_at": fill_if_null(Quantum.date_at, excluded.date_at),
         "retriever_query": fill_if_null(Quantum.retriever_query, excluded.retriever_query),
         "rank_score": fill_if_null(Quantum.rank_score, excluded.rank_score),
+        "opinion_score": take_new_if_not_null_jsonb(Quantum.opinion_score, excluded.opinion_score),
+        "total_score": take_new_if_not_null(Quantum.total_score, excluded.total_score),
         "site_id": fill_if_null(Quantum.site_id, excluded.site_id),
         "retriever_version": fill_if_null(Quantum.retriever_version, excluded.retriever_version),
         "raw_payload_ref": fill_if_null(Quantum.raw_payload_ref, excluded.raw_payload_ref),
@@ -171,6 +177,8 @@ async def create_quantum(
     matched_term_ids: list[str] | None,
     retriever_query: str | None,
     rank_score: float | None,
+    opinion_score: list[dict[str, Any]] | None = None,
+    total_score: float | None = None,
     source_system: str,
     site_id: uuid.UUID | None,
     retriever_name: str,
@@ -218,6 +226,8 @@ async def create_quantum(
         "matched_term_ids": matched_term_ids or [],
         "retriever_query": retriever_query,
         "rank_score": rank_score,
+        "opinion_score": opinion_score,
+        "total_score": total_score,
         "source_system": source_system,
         "site_id": site_id,
         "retriever_name": retriever_name,

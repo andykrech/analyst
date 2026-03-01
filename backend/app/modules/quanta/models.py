@@ -21,6 +21,9 @@ from sqlalchemy.types import Enum as SAEnum
 
 from app.db.base import Base
 
+# Чтобы FK theme_quanta.run_id -> search_runs.id разрешался, таблица search_runs должна быть в metadata
+from app.modules.search_run.model import SearchRun  # noqa: F401
+
 
 class QuantumEntityKind(str, enum.Enum):
     """Тип сущности кванта (строго фиксированный enum в Postgres)."""

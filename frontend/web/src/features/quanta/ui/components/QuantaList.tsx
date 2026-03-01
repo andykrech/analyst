@@ -45,6 +45,23 @@ export function QuantaList({ items }: QuantaListProps) {
                 {ENTITY_KIND_LABELS[q.entity_kind] ?? q.entity_kind}
               </span>
               <span className="quanta-list__source">{q.source_system}</span>
+              <div className="quanta-list__scores" aria-label="Оценки релевантности">
+                {q.rank_score != null && (
+                  <span className="quanta-list__score" title="Сходство по эмбеддингу (rank_score)">
+                    {(q.rank_score * 100).toFixed(0)}%
+                  </span>
+                )}
+                {q.opinion_score?.[0]?.score != null && (
+                  <span className="quanta-list__score" title={`Мнение ИИ: ${q.opinion_score[0].model ?? ''}`}>
+                    ИИ: {(q.opinion_score[0].score * 100).toFixed(0)}%
+                  </span>
+                )}
+                {q.total_score != null && (
+                  <span className="quanta-list__score quanta-list__score_total" title="Итоговая оценка (total_score)">
+                    Σ {(q.total_score * 100).toFixed(0)}%
+                  </span>
+                )}
+              </div>
             </div>
             <h3 className="quanta-list__title">{displayTitle(q)}</h3>
             {summary && (

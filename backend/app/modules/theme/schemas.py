@@ -45,6 +45,127 @@ class ThemePrepareResponse(BaseModel):
     llm: ThemePrepareLLMMeta | None = Field(default=None, description="Мета вызова LLM")
 
 
+# --- Prepare title (только название по описанию) ---
+
+
+class ThemePrepareTitleRequest(BaseModel):
+    """Запрос на предложение названия темы по описанию."""
+
+    description: str = Field(..., min_length=1, description="Описание темы")
+
+
+class ThemePrepareTitleResponse(BaseModel):
+    """Ответ: предложенное название + мета LLM."""
+
+    title: str = Field(..., description="Предложенное название темы")
+    llm: ThemePrepareLLMMeta | None = Field(default=None, description="Мета вызова LLM")
+
+
+# --- Prepare keywords (только ключевые слова по описанию) ---
+
+
+class ThemePrepareKeywordsRequest(BaseModel):
+    """Запрос на предложение ключевых слов по теме. description опционален — при отсутствии берётся из БД по theme_id."""
+
+    theme_id: str = Field(..., description="UUID темы")
+    description: str | None = Field(default=None, max_length=10000, description="Описание темы (если не передан — загрузка из БД)")
+
+
+class ThemePrepareKeywordsResult(BaseModel):
+    """Результат: только ключевые слова, must_have, excludes (без названия)."""
+
+    keywords: list[TermDTO] = Field(default_factory=list)
+    must_have: list[TermDTO] = Field(default_factory=list)
+    excludes: list[TermDTO] = Field(default_factory=list)
+
+
+class ThemePrepareKeywordsResponse(BaseModel):
+    """Ответ эндпоинта prepare-keywords."""
+
+    result: ThemePrepareKeywordsResult = Field(...)
+    llm: ThemePrepareLLMMeta | None = Field(default=None, description="Мета вызова LLM")
+
+
+# --- Создание темы (минимальное: title, description, languages) ---
+
+
+class ThemeCreateRequest(BaseModel):
+    """Минимальное создание темы: название, описание, список языков (хотя бы один)."""
+
+    title: str = Field(..., min_length=1, max_length=500)
+    description: str = Field(..., min_length=1, max_length=10000)
+    languages: list[str] = Field(..., min_length=1, description="Список языков, первый — основной")
+
+    @field_validator("title", "description", mode="before")
+    @classmethod
+    def strip_string(cls, v: str) -> str:
+        if v is None:
+            return ""
+        return str(v).strip()
+
+    @field_validator("languages")
+    @classmethod
+    def validate_language_codes(cls, v: list[str]) -> list[str]:
+        out: list[str] = []
+        seen: set[str] = set()
+        for item in v:
+            if not isinstance(item, str):
+                continue
+            s = item.strip()[:20]
+            if s and s.lower() not in seen:
+                seen.add(s.lower())
+                out.append(s)
+        return out
+
+
+# --- PATCH темы (опциональные поля, дельта по терминам) ---
+
+
+class TermsDelta(BaseModel):
+    """Дельта по пулу терминов: добавить/обновить по id, удалить по id."""
+
+    add_or_update: list["TermIn"] = Field(default_factory=list, description="Термины для добавления или обновления (по id)")
+    delete_ids: list[str] = Field(default_factory=list, max_length=500, description="Id терминов для удаления из пула")
+
+
+class ThemePatchRequest(BaseModel):
+    """Частичное обновление темы. Все поля опциональны. Передаются только изменённые."""
+
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    description: str | None = Field(default=None, min_length=1, max_length=10000)
+    languages: list[str] | None = Field(default=None)
+    keyword_terms: TermsDelta | None = Field(default=None, description="Дельта по ключевым словам")
+    must_have_terms: TermsDelta | None = Field(default=None, description="Дельта по обязательным словам")
+    exclude_terms: TermsDelta | None = Field(default=None, description="Дельта по минус-словам")
+    search_queries: dict[str, Any] | None = Field(
+        default=None,
+        description="Слоты запросов: ключи '1','2','3', значение — query_model или null для удаления слота",
+    )
+
+    @field_validator("title", "description", mode="before")
+    @classmethod
+    def strip_string(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        return str(v).strip()
+
+    @field_validator("languages")
+    @classmethod
+    def validate_language_codes(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        out: list[str] = []
+        seen: set[str] = set()
+        for item in v:
+            if not isinstance(item, str):
+                continue
+            s = item.strip()[:20]
+            if s and s.lower() not in seen:
+                seen.add(s.lower())
+                out.append(s)
+        return out
+
+
 # --- Terms translate ---
 
 
@@ -155,6 +276,10 @@ class TermIn(BaseModel):
                 if k_:
                     result[k_] = val_
         return result
+
+
+# Разрешить forward reference TermIn в TermsDelta
+TermsDelta.model_rebuild()
 
 
 class ThemeSaveIn(BaseModel):

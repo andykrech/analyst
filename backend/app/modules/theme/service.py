@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.theme.model import Theme, ThemeSearchQuery
 from app.modules.theme.schemas import (
     TermIn,
+    ThemeCreateRequest,
+    ThemePatchRequest,
     ThemeSaveRequest,
     ThemeSearchQueryIn,
 )
@@ -59,6 +61,107 @@ async def create_theme_with_queries(
             is_enabled=q.is_enabled,
         )
         session.add(query_row)
+
+    await session.flush()
+    return theme
+
+
+async def create_theme_minimal(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    payload: ThemeCreateRequest,
+) -> Theme:
+    """Создать тему с минимальным набором: title, description, languages. Остальное — null."""
+    theme = Theme(
+        user_id=user_id,
+        title=payload.title.strip(),
+        description=payload.description.strip(),
+        keywords=None,
+        must_have=None,
+        exclude=None,
+        languages=payload.languages,
+    )
+    session.add(theme)
+    await session.flush()
+    return theme
+
+
+def _apply_terms_delta(current_list: list | None, add_or_update: list[TermIn], delete_ids: list[str]) -> list[dict]:
+    """Применить дельту к списку терминов: merge add_or_update по id, убрать delete_ids."""
+    by_id: dict[str, dict] = {}
+    for t in current_list or []:
+        if isinstance(t, dict) and t.get("id"):
+            by_id[str(t["id"])] = t
+    for t in add_or_update:
+        by_id[t.id] = _term_to_json(t)
+    for tid in delete_ids:
+        by_id.pop(tid, None)
+    return list(by_id.values())
+
+
+async def patch_theme(
+    session: AsyncSession,
+    theme_id: uuid.UUID,
+    user_id: uuid.UUID,
+    payload: ThemePatchRequest,
+) -> Theme | None:
+    """Частично обновить тему. Передаются только изменённые поля."""
+    theme, _ = await get_theme_with_queries(session, theme_id, user_id)
+    if not theme:
+        return None
+
+    if payload.title is not None:
+        theme.title = payload.title.strip()
+    if payload.description is not None:
+        theme.description = payload.description.strip()
+    if payload.languages is not None:
+        theme.languages = payload.languages
+
+    if payload.keyword_terms is not None:
+        theme.keywords = _apply_terms_delta(
+            theme.keywords,
+            payload.keyword_terms.add_or_update,
+            payload.keyword_terms.delete_ids,
+        )
+    if payload.must_have_terms is not None:
+        theme.must_have = _apply_terms_delta(
+            theme.must_have,
+            payload.must_have_terms.add_or_update,
+            payload.must_have_terms.delete_ids,
+        )
+    if payload.exclude_terms is not None:
+        theme.exclude = _apply_terms_delta(
+            theme.exclude,
+            payload.exclude_terms.add_or_update,
+            payload.exclude_terms.delete_ids,
+        )
+
+    if payload.search_queries is not None:
+        await session.execute(delete(ThemeSearchQuery).where(ThemeSearchQuery.theme_id == theme_id))
+        for order_key, qm in payload.search_queries.items():
+            try:
+                order_index = int(order_key)
+            except (ValueError, TypeError):
+                continue
+            if order_index < 1 or order_index > 3:
+                continue
+            if qm is None:
+                continue
+            query_model = qm if isinstance(qm, dict) else getattr(qm, "model_dump", lambda: qm)()
+            if not isinstance(query_model, dict):
+                continue
+            query_row = ThemeSearchQuery(
+                id=uuid.uuid4(),
+                theme_id=theme.id,
+                order_index=order_index,
+                title=None,
+                query_model=query_model,
+                time_window_days=None,
+                target_links=None,
+                enabled_retrievers=None,
+                is_enabled=True,
+            )
+            session.add(query_row)
 
     await session.flush()
     return theme

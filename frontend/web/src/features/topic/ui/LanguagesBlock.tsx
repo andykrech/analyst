@@ -10,7 +10,11 @@ function getLabel(code: string) {
   return `${native} (${code})`
 }
 
-export function LanguagesBlock() {
+export function LanguagesBlock({
+  onLanguagesChange,
+}: {
+  onLanguagesChange?: () => void
+} = {}) {
   const languages = useTopicStore((s) => s.data.theme.languages)
   const setPrimaryLanguage = useTopicStore((s) => s.setPrimaryLanguage)
   const addAdditionalLanguage = useTopicStore((s) => s.addAdditionalLanguage)
@@ -48,7 +52,10 @@ export function LanguagesBlock() {
         <select
           className="languages-block__select"
           value={primary}
-          onChange={(e) => setPrimaryLanguage(e.target.value)}
+          onChange={(e) => {
+            setPrimaryLanguage(e.target.value)
+            onLanguagesChange?.()
+          }}
         >
           <option value="">—</option>
           {primaryOptions.map((code) => (
@@ -81,6 +88,7 @@ export function LanguagesBlock() {
               if (additionalSelect) {
                 addAdditionalLanguage(additionalSelect)
                 setAdditionalSelect('')
+                onLanguagesChange?.()
               }
             }}
           >
@@ -94,7 +102,10 @@ export function LanguagesBlock() {
               <button
                 type="button"
                 className="languages-block__btn-remove"
-                onClick={() => removeAdditionalLanguage(code)}
+                onClick={() => {
+                  removeAdditionalLanguage(code)
+                  onLanguagesChange?.()
+                }}
                 aria-label={`Удалить ${code}`}
               >
                 −

@@ -24,7 +24,12 @@ export interface QuantumOutDto {
   matched_terms: unknown[]
   matched_term_ids: unknown[]
   retriever_query: string | null
+  /** Оценка сходства по эмбеддингу (0–1) */
   rank_score: number | null
+  /** Мнения моделей ИИ о релевантности: [{ model, score }, ...]; первая — для отображения на карточке */
+  opinion_score: Array<{ model: string; score: number }> | null
+  /** Итоговая оценка релевантности (0–1): среднее rank_score и opinion_score */
+  total_score: number | null
   source_system: string
   site_id: string | null
   retriever_name: string

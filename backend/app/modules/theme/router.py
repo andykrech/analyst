@@ -20,13 +20,20 @@ from app.modules.theme.schemas import (
     TermsTranslateLLMMeta,
     TermsTranslateRequest,
     TermsTranslateResponse,
+    ThemeCreateRequest,
     ThemeGetOut,
     ThemeGetResponse,
     ThemeGetTermOut,
+    ThemePatchRequest,
+    ThemePrepareKeywordsRequest,
+    ThemePrepareKeywordsResponse,
+    ThemePrepareKeywordsResult,
     ThemePrepareLLMMeta,
     ThemePrepareRequest,
     ThemePrepareResponse,
     ThemePrepareResult,
+    ThemePrepareTitleRequest,
+    ThemePrepareTitleResponse,
     ThemeListItem,
     ThemeListResponse,
     ThemeSaveRequest,
@@ -34,9 +41,11 @@ from app.modules.theme.schemas import (
     ThemeSearchQueryOut,
 )
 from app.modules.theme.service import (
+    create_theme_minimal,
     create_theme_with_queries,
     get_theme_with_queries,
     list_themes,
+    patch_theme,
     update_theme_with_queries,
 )
 from app.modules.user.model import User
@@ -45,6 +54,8 @@ router = APIRouter(prefix="/api/v1/themes", tags=["themes"])
 logger = logging.getLogger(__name__)
 
 THEME_INIT_PROMPT = "theme.init"
+THEME_INIT_TITLE_PROMPT = "theme.init.title"
+THEME_INIT_KEYWORDS_PROMPT = "theme.init.keywords"
 DETAIL_TRUNCATE = 300
 CONTEXT_MAX_LEN = 600
 
@@ -187,6 +198,172 @@ async def prepare_theme(
     )
 
     return ThemePrepareResponse(result=result, llm=llm_meta)
+
+
+@router.post("/prepare-title", response_model=ThemePrepareTitleResponse)
+async def prepare_theme_title(
+    body: ThemePrepareTitleRequest,
+    llm_service: LLMService = Depends(get_llm_service),
+    prompt_service: PromptService = Depends(get_prompt_service),
+) -> ThemePrepareTitleResponse:
+    """Предложить только название темы по описанию (для кнопки «Создать тему»)."""
+    try:
+        response = await llm_service.generate_from_prompt(
+            prompt_name=THEME_INIT_TITLE_PROMPT,
+            vars={"user_input": body.description},
+            prompt_service=prompt_service,
+            task="theme_init_title",
+            generation={"temperature": 0.2, "max_tokens": 200},
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.exception("theme_init_title LLM call failed: %s", e)
+        msg = str(e)
+        if "timeout" in msg.lower() or "timed out" in msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Таймаут при обращении к LLM. Попробуйте позже.",
+            ) from e
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Ошибка при обращении к LLM. Проверьте настройки провайдера.",
+        ) from e
+
+    raw_text = (response.text or "").strip()
+    if not raw_text:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="LLM вернул пустой ответ для theme.init.title",
+        )
+    try:
+        if raw_text.startswith("```"):
+            lines = raw_text.split("\n")
+            raw_text = "\n".join(
+                line for line in lines if line.strip() and not line.strip().startswith("```")
+            )
+        data = json.loads(raw_text)
+    except json.JSONDecodeError as e:
+        snippet = raw_text[:DETAIL_TRUNCATE] + ("..." if len(raw_text) > DETAIL_TRUNCATE else "")
+        logger.warning("theme_init_title invalid JSON: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"LLM вернул невалидный JSON для theme.init.title. {e!s}. Ответ (начало): {snippet!r}",
+        ) from e
+
+    if not isinstance(data, dict):
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Ожидался JSON-объект с полем title.",
+        )
+    title = data.get("title")
+    if not title or not str(title).strip():
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="В ответе LLM отсутствует непустое поле title.",
+        )
+    title = str(title).strip()
+
+    llm_meta = ThemePrepareLLMMeta(
+        provider=response.provider,
+        model=response.model,
+        usage=response.usage.model_dump(mode="json"),
+        cost=response.cost.model_dump(mode="json"),
+        warnings=response.warnings or [],
+    )
+    return ThemePrepareTitleResponse(title=title, llm=llm_meta)
+
+
+@router.post("/prepare-keywords", response_model=ThemePrepareKeywordsResponse)
+async def prepare_theme_keywords(
+    body: ThemePrepareKeywordsRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    llm_service: LLMService = Depends(get_llm_service),
+    prompt_service: PromptService = Depends(get_prompt_service),
+) -> ThemePrepareKeywordsResponse:
+    """Предложить ключевые слова (и must_have, excludes) по описанию. description опционален — при отсутствии загружается из темы по theme_id."""
+    user_input = body.description
+    if user_input is None or not user_input.strip():
+        try:
+            tid = uuid.UUID(body.theme_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Неверный формат theme_id",
+            ) from None
+        theme, _ = await get_theme_with_queries(db, tid, current_user.id)
+        if not theme:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Тема не найдена или недоступна",
+            )
+        user_input = (theme.description or "").strip()
+        if not user_input:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="У темы нет описания. Укажите description в теле запроса или заполните описание темы.",
+            )
+    else:
+        user_input = user_input.strip()
+
+    try:
+        response = await llm_service.generate_from_prompt(
+            prompt_name=THEME_INIT_KEYWORDS_PROMPT,
+            vars={"user_input": user_input},
+            prompt_service=prompt_service,
+            task="theme_init_keywords",
+            generation={"temperature": 0.2, "max_tokens": 2000},
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.exception("theme_init_keywords LLM call failed: %s", e)
+        msg = str(e)
+        if "timeout" in msg.lower() or "timed out" in msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Таймаут при обращении к LLM. Попробуйте позже.",
+            ) from e
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Ошибка при обращении к LLM. Проверьте настройки провайдера.",
+        ) from e
+
+    raw_text = (response.text or "").strip()
+    if not raw_text:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="LLM вернул пустой ответ для theme.init.keywords",
+        )
+    try:
+        if raw_text.startswith("```"):
+            lines = raw_text.split("\n")
+            raw_text = "\n".join(
+                line for line in lines if line.strip() and not line.strip().startswith("```")
+            )
+        data = json.loads(raw_text)
+    except json.JSONDecodeError as e:
+        snippet = raw_text[:DETAIL_TRUNCATE] + ("..." if len(raw_text) > DETAIL_TRUNCATE else "")
+        logger.warning("theme_init_keywords invalid JSON: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"LLM вернул невалидный JSON для theme.init.keywords. {e!s}. Ответ (начало): {snippet!r}",
+        ) from e
+
+    if not isinstance(data, dict):
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Ожидался JSON-объект с полями keywords, must_have, excludes.",
+        )
+    keywords = [TermDTO(**x) for x in _normalize_terms(data.get("keywords"))]
+    must_have = [TermDTO(**x) for x in _normalize_terms(data.get("must_have"))]
+    excludes = [TermDTO(**x) for x in _normalize_terms(data.get("excludes"))]
+    result = ThemePrepareKeywordsResult(keywords=keywords, must_have=must_have, excludes=excludes)
+    llm_meta = ThemePrepareLLMMeta(
+        provider=response.provider,
+        model=response.model,
+        usage=response.usage.model_dump(mode="json"),
+        cost=response.cost.model_dump(mode="json"),
+        warnings=response.warnings or [],
+    )
+    return ThemePrepareKeywordsResponse(result=result, llm=llm_meta)
 
 
 @router.post("/terms/translate", response_model=TermsTranslateResponse)
@@ -440,7 +617,22 @@ async def get_theme(
     )
 
 
-# --- Сохранение темы и поисковых запросов (общее имя: позже — источники, наборы ссылок и т.д.) ---
+# --- Создание темы (минимальное) и частичное обновление ---
+
+
+@router.post("/minimal", response_model=ThemeSaveResponse, status_code=status.HTTP_201_CREATED)
+async def create_theme_minimal_endpoint(
+    body: ThemeCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ThemeSaveResponse:
+    """Создать тему с минимальным набором: title, description, languages. Остальные поля — null."""
+    theme = await create_theme_minimal(db, current_user.id, body)
+    logger.info("Theme created (minimal) theme_id=%s user_id=%s", theme.id, current_user.id)
+    return ThemeSaveResponse(id=str(theme.id), message="created")
+
+
+# --- Сохранение темы и поисковых запросов (полное: PUT и POST целиком) ---
 
 
 @router.post("", response_model=ThemeSaveResponse, status_code=status.HTTP_201_CREATED)
@@ -483,4 +675,29 @@ async def save_theme_update(
             detail="Тема не найдена или недоступна",
         )
     logger.info("Theme updated theme_id=%s user_id=%s", theme.id, current_user.id)
+    return ThemeSaveResponse(id=str(theme.id), message="ok")
+
+
+@router.patch("/{theme_id}", response_model=ThemeSaveResponse)
+async def patch_theme_endpoint(
+    theme_id: str,
+    body: ThemePatchRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ThemeSaveResponse:
+    """Частично обновить тему. Передаются только изменённые поля (дельта по терминам, слоты запросов)."""
+    try:
+        tid = uuid.UUID(theme_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверный формат theme_id (ожидается UUID)",
+        )
+    theme = await patch_theme(db, tid, current_user.id, body)
+    if not theme:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Тема не найдена или недоступна",
+        )
+    logger.info("Theme patched theme_id=%s user_id=%s", theme.id, current_user.id)
     return ThemeSaveResponse(id=str(theme.id), message="ok")

@@ -54,6 +54,7 @@ from app.modules.event.model import (  # noqa: F401
     EventEntityLink,
     EventSourceLink,
 )
+from app.integrations.embedding.model import Embedding  # noqa: F401
 
 # add your model's MetaData object here
 # for 'autogenerate' support

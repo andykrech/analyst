@@ -3,15 +3,20 @@ SearchService: единая точка входа для сбора кванто
 
 theme_search_queries — источник истины для планирования поиска.
 TimeSlice — универсальный параметр выполнения (backfill и мониторинг).
+Перед поиском по теме создаётся/обновляется вектор релевантности темы (embedding_kind=relevance).
 """
 import logging
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.sql import literal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
+from app.integrations.embedding import EmbeddingService
+from app.integrations.embedding.model import Embedding
+from app.integrations.embedding.theme_relevance import ensure_theme_relevance_embedding
 from app.integrations.search.exec import SearchExecutor
 from app.integrations.search.plan import SearchPlanner
 from app.integrations.search.ports import RetrieverContext
@@ -60,15 +65,18 @@ class SearchService:
     """
     Единый сервис сбора квантов: planner + executor + registry retriever'ов.
     По умолчанию используется ретривер публикаций (OpenAlex).
+    Настройки (в т.ч. для эмбеддинга) берутся из Settings; EmbeddingService создаётся внутри.
+    Перед поиском по теме создаётся/обновляется вектор релевантности темы (embedding_kind=relevance).
     """
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+        self._embedding_service = EmbeddingService(settings)
         self._registry: dict[str, "RetrieverPort"] = {
             "openalex": PublicationRetriever(),
         }
         self._planner = SearchPlanner(settings)
-        self._executor = SearchExecutor(self._registry, settings)
+        self._executor = SearchExecutor(self._registry, settings, self._embedding_service)
 
     async def collect_links_for_theme(
         self,
@@ -109,6 +117,27 @@ class SearchService:
             ]
             if not languages_for_plan:
                 languages_for_plan = ["en"]
+            await ensure_theme_relevance_embedding(
+                session, theme, self._embedding_service, self._settings
+            )
+            theme_vector_row = await session.execute(
+                select(Embedding)
+                .where(Embedding.theme_id == theme_id)
+                .where(Embedding.object_type == "theme")
+                .where(Embedding.object_id == theme_id)
+                .where(Embedding.embedding_kind == "relevance")
+                .where(Embedding.model == literal((self._settings.EMBEDDING_MODEL or "").strip() or "text-embedding-3-small"))
+                .limit(1)
+            )
+            theme_emb = theme_vector_row.scalar_one_or_none()
+            emb = getattr(theme_emb, "embedding", None)
+            if not theme_emb or emb is None or (hasattr(emb, "__len__") and len(emb) == 0):
+                raise ValueError(
+                    "Вектор релевантности темы не найден. Убедитесь, что эмбеддинг темы создан (OPENAI_API_KEY и т.д.)."
+                )
+            theme_relevance_vector = list(theme_emb.embedding)
+        else:
+            theme_relevance_vector = None
 
         ctx = RetrieverContext(
             settings=self._settings,
@@ -119,6 +148,7 @@ class SearchService:
             terms_by_id=terms_by_id,
             language=language,
             time_slice=time_slice,
+            theme_relevance_vector=theme_relevance_vector,
         )
         plan = await self._planner.build_plan_for_theme(
             session, theme_id, mode=mode, languages=languages_for_plan

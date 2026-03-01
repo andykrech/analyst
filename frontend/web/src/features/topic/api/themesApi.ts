@@ -29,6 +29,37 @@ export interface ThemePrepareResponse {
   llm?: ThemePrepareLLMMeta | null
 }
 
+// --- Prepare title (только название по описанию) ---
+
+export interface ThemePrepareTitleRequestDto {
+  description: string
+}
+
+export interface ThemePrepareTitleResponseDto {
+  title: string
+  llm?: ThemePrepareLLMMeta | null
+}
+
+// --- Create theme minimal ---
+
+export interface ThemeCreateRequestDto {
+  title: string
+  description: string
+  languages: string[]
+}
+
+// --- PATCH темы (опциональные поля) ---
+
+export interface ThemePatchRequestDto {
+  title?: string
+  description?: string
+  languages?: string[]
+  keyword_terms?: { add_or_update: ThemeSaveTermDto[]; delete_ids: string[] }
+  must_have_terms?: { add_or_update: ThemeSaveTermDto[]; delete_ids: string[] }
+  exclude_terms?: { add_or_update: ThemeSaveTermDto[]; delete_ids: string[] }
+  search_queries?: Record<string, ThemeSaveQueryModelDto | null>
+}
+
 // --- Terms translate ---
 
 export interface TermTranslateInDto {
@@ -145,6 +176,40 @@ export interface ThemeListResponseDto {
 export const themesApi = {
   prepare: async (data: ThemePrepareRequest): Promise<ThemePrepareResponse> => {
     return apiClient.post<ThemePrepareResponse>('/api/v1/themes/prepare', data)
+  },
+
+  prepareTitle: async (
+    data: ThemePrepareTitleRequestDto,
+    options?: RequestOptions
+  ): Promise<ThemePrepareTitleResponseDto> => {
+    return apiClient.post<ThemePrepareTitleResponseDto>(
+      '/api/v1/themes/prepare-title',
+      data,
+      options
+    )
+  },
+
+  createThemeMinimal: async (
+    data: ThemeCreateRequestDto,
+    options?: RequestOptions
+  ): Promise<ThemeSaveResponseDto> => {
+    return apiClient.post<ThemeSaveResponseDto>(
+      '/api/v1/themes/minimal',
+      data,
+      options
+    )
+  },
+
+  patchTheme: async (
+    themeId: string,
+    data: ThemePatchRequestDto,
+    options?: RequestOptions
+  ): Promise<ThemeSaveResponseDto> => {
+    return apiClient.patch<ThemeSaveResponseDto>(
+      `/api/v1/themes/${themeId}`,
+      data,
+      options
+    )
   },
 
   translateTerms: async (

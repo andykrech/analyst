@@ -332,3 +332,11 @@ class QuantumCollectResult(BaseModel):
     step_results: list[StepResult]
     total_found: int
     total_returned: int
+    items_embedding_data: list[dict] | None = Field(
+        default=None,
+        description="Для записи в embeddings: каждый элемент {vector, text_hash, creation_id}. creation_id совпадает с attrs кванта — привязка по нему, а не по индексу; после сохранения creation_id удаляется из attrs в БД.",
+    )
+    warnings: list[str] | None = Field(
+        default=None,
+        description="Предупреждения (например, ошибки эмбеддинга для части квантов)",
+    )

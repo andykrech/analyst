@@ -5,12 +5,16 @@
 import asyncio
 import logging
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import literal
 
 from app.core.config import get_settings
 from app.db.session import get_db
+from app.integrations.embedding.model import Embedding
 from app.integrations.llm import LLMService, get_llm_service
 from app.integrations.prompts import PromptService, get_prompt_service
 from app.integrations.search.schemas import (
@@ -24,6 +28,7 @@ from app.integrations.translation import TranslationService
 from app.modules.quanta.service import (
     get_translate_batch_count,
     save_quanta_from_search,
+    score_quanta_relevance,
     translate_quanta_create_items,
 )
 from app.modules.theme.service import get_theme_by_id
@@ -111,13 +116,43 @@ async def collect_links_by_theme(
                 primary_language = theme.languages[0] if theme.languages else "en"
 
         settings = get_settings()
-        translations_by_index: dict[int, dict] = {}
+        relevance_by_index: dict[int, dict] = {}
+        items_to_save = result.items
 
-        if settings.QUANTA_TRANSLATION_METHOD.strip().lower() == "translator":
+        # Сначала оценка релевантности ИИ и фильтр по total_score — потом переводим только то, что сохраняем
+        if result.items and theme_id_uuid and theme:
+            theme_description = (theme.description or theme.title or "").strip()
+            try:
+                relevance_list = await score_quanta_relevance(
+                    theme_description,
+                    result.items,
+                    model_names=["deepseek"],
+                    llm_service=llm_service,
+                    prompt_service=prompt_service,
+                )
+                total_threshold = max(
+                    0.0,
+                    min(1.0, (get_settings().QUANTUM_RELEVANCE_THRESHOLD or 0.0)),
+                )
+                kept_indices = [
+                    i
+                    for i in range(len(result.items))
+                    if (relevance_list[i].get("total_score") or -1.0) >= total_threshold
+                ]
+                items_to_save = [result.items[i] for i in kept_indices]
+                relevance_by_index = {new_i: relevance_list[kept_indices[new_i]] for new_i in range(len(kept_indices))}
+                result.items = items_to_save
+                result.total_returned = len(items_to_save)
+            except Exception as e:
+                logger.warning("collect-by-theme: ошибка оценки релевантности квантов (LLM), сохраняем без opinion_score: %s", e)
+
+        # Перевод только квантов, прошедших обе проверки (embedding + total_score)
+        translations_by_index: dict[int, dict] = {}
+        if items_to_save and settings.QUANTA_TRANSLATION_METHOD.strip().lower() == "translator":
             translation_service = get_translation_service(request)
             try:
                 translations_by_index, cost = await translation_service.translate_quanta_create_items(
-                    result.items,
+                    items_to_save,
                     target_lang=primary_language,
                 )
                 logger.info(
@@ -127,9 +162,9 @@ async def collect_links_by_theme(
                 )
             except Exception as e:
                 logger.warning("collect-by-theme: ошибка перевода квантов (translator), сохраняем без переводов: %s", e)
-        else:
+        elif items_to_save:
             batch_count = get_translate_batch_count(
-                result.items,
+                items_to_save,
                 primary_language,
                 limit=settings.QUANTA_TRANSLATION_LIMIT,
             )
@@ -137,7 +172,7 @@ async def collect_links_by_theme(
             try:
                 translations_by_index = await asyncio.wait_for(
                     translate_quanta_create_items(
-                        result.items,
+                        items_to_save,
                         primary_language,
                         llm_service,
                         prompt_service,
@@ -154,10 +189,74 @@ async def collect_links_by_theme(
             except Exception as e:
                 logger.warning("collect-by-theme: ошибка перевода квантов (LLM), сохраняем без переводов: %s", e)
 
-        await save_quanta_from_search(
+        created_quanta = await save_quanta_from_search(
             db,
-            result.items,
+            items_to_save,
             run_id=run_id_uuid,
             translations_by_index=translations_by_index,
+            relevance_by_index=relevance_by_index,
         )
+
+        # Привязка эмбеддингов к квантам по creation_id (в attrs), а не по индексу — чтобы порядок не перепутался при пропусках в save_quanta_from_search
+        if result.items_embedding_data and created_quanta and theme_id_uuid:
+            model_name = (settings.EMBEDDING_MODEL or "").strip() or "text-embedding-3-small"
+            dims = settings.EMBEDDING_DIMENSIONS or 1536
+            creation_id_to_quantum = {
+                (q.attrs or {}).get("creation_id"): q
+                for q in created_quanta
+                if (q.attrs or {}).get("creation_id")
+            }
+            for ed in result.items_embedding_data:
+                if not isinstance(ed, dict):
+                    continue
+                creation_id = ed.get("creation_id")
+                quantum = creation_id_to_quantum.get(creation_id) if creation_id else None
+                if quantum is None:
+                    continue
+                vector = ed.get("vector")
+                text_hash = ed.get("text_hash")
+                if not vector or not isinstance(vector, list) or text_hash is None:
+                    continue
+                existing = await db.execute(
+                    select(Embedding).where(
+                        Embedding.theme_id == theme_id_uuid,
+                        Embedding.object_type == "quantum",
+                        Embedding.object_id == quantum.id,
+                        Embedding.embedding_kind == "relevance",
+                        Embedding.model == literal(model_name),
+                    ).limit(1)
+                )
+                row = existing.scalar_one_or_none()
+                if row:
+                    row.embedding = vector
+                    row.text_hash = str(text_hash)
+                    row.dims = dims
+                    row.updated_at = datetime.now(timezone.utc)
+                    db.add(row)
+                else:
+                    db.add(
+                        Embedding(
+                            theme_id=theme_id_uuid,
+                            object_type="quantum",
+                            object_id=quantum.id,
+                            embedding_kind="relevance",
+                            model=model_name,
+                            dims=dims,
+                            embedding=vector,
+                            text_hash=str(text_hash),
+                        )
+                    )
+            await db.flush()
+
+            # Удаляем временный creation_id из attrs в БД (он был нужен только для привязки вектора к кванту в рамках этого запроса)
+            for q in created_quanta:
+                attrs = q.attrs or {}
+                if "creation_id" in attrs:
+                    new_attrs = {k: v for k, v in attrs.items() if k != "creation_id"}
+                    q.attrs = new_attrs
+                    db.add(q)
+            await db.flush()
+    if result.warnings:
+        for w in result.warnings:
+            logger.warning("collect-by-theme: %s", w)
     return result

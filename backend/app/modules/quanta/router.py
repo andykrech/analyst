@@ -56,6 +56,8 @@ def _quantum_row_to_out(q: Quantum) -> QuantumOut:
         matched_term_ids=list(q.matched_term_ids or []),
         retriever_query=q.retriever_query,
         rank_score=q.rank_score,
+        opinion_score=list(q.opinion_score) if q.opinion_score else None,
+        total_score=q.total_score,
         source_system=q.source_system,
         site_id=str(q.site_id) if q.site_id else None,
         retriever_name=q.retriever_name,
