@@ -182,6 +182,16 @@ class Settings:
     PROMPT_ALIASES_FILE: str = _str("PROMPT_ALIASES_FILE", "app/prompts/aliases.yml")
     PROMPT_CACHE_TTL_S: int = _int("PROMPT_CACHE_TTL_S", 0)
 
+    # Извлечение сущностей из квантов
+    BATCH_SIZE_FOR_ENTITIES_EXTRACTION: int = _int(
+        "BATCH_SIZE_FOR_ENTITIES_EXTRACTION",
+        100,
+    )
+    ENTITY_EXTRACTION_VERSION: str = _str(
+        "ENTITY_EXTRACTION_VERSION",
+        "v1.0",
+    )
+
     @property
     def llm_registry(self) -> dict[str, ProviderConfig]:
         """Реестр конфигураций LLM-провайдеров (ключ — имя провайдера)."""

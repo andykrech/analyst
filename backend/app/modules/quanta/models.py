@@ -219,6 +219,16 @@ class Quantum(Base):
         comment="сайт, с которого эта ссылка (опционально)",
     )
 
+    entity_extraction_version: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment=(
+            "Версия экстрактора сущностей, которая использовалась для извлечения "
+            "сущностей из этого кванта, если null - значит извлечение еще не "
+            "производилось"
+        ),
+    )
+
     retriever_name: Mapped[str] = mapped_column(
         Text,
         nullable=False,

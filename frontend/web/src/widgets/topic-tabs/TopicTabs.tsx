@@ -22,6 +22,8 @@ export function TopicTabs() {
   const loadTopicIntoStore = useTopicStore((s) => s.loadTopicIntoStore)
   const runSearch = useTopicStore((s) => s.runSearch)
   const quantaLoading = useTopicStore((s) => s.data.quanta.isLoading)
+  const extractEntities = useTopicStore((s) => s.extractEntities)
+  const entitiesLoading = useTopicStore((s) => s.data.entities.isLoading)
 
   const [saving, setSaving] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -103,6 +105,15 @@ export function TopicTabs() {
         >
           Кванты
         </NavLink>
+        <NavLink
+          to="/topic/entities"
+          className={({ isActive }) =>
+            `topic-tabs__link ${isActive ? 'topic-tabs__link--active' : ''}`
+          }
+          onClick={() => setActiveTab('entities')}
+        >
+          Сущности
+        </NavLink>
       </nav>
       <div className="topic-tabs__actions">
         {successMessage && (
@@ -123,6 +134,15 @@ export function TopicTabs() {
           title={!activeTopicId ? 'Сначала сохраните тему' : undefined}
         >
           {quantaLoading ? 'Поиск…' : 'Поиск информации'}
+        </button>
+        <button
+          type="button"
+          className="topic-tabs__search-btn"
+          onClick={() => extractEntities()}
+          disabled={entitiesLoading || !activeTopicId}
+          title={!activeTopicId ? 'Сначала сохраните тему' : undefined}
+        >
+          {entitiesLoading ? 'Извлечение…' : 'Найти сущности'}
         </button>
         <button
           type="button"

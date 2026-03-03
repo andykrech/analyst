@@ -20,6 +20,11 @@ import {
 } from '@/features/quanta'
 import type { QuantumOutDto } from '@/features/quanta'
 import {
+  listThemeEntities,
+  extractThemeEntities,
+} from '@/features/entity'
+import type { EntityOutDto } from '@/features/entity'
+import {
   listThemeSources,
   createThemeSource,
   updateThemeSource,
@@ -134,21 +139,37 @@ export interface TopicQuantaData {
   error: string | null
 }
 
+export interface TopicEntitiesData {
+  items: EntityOutDto[]
+  total: number
+  isLoading: boolean
+  error: string | null
+}
+
 export interface TopicData {
   theme: TopicTheme
   search: SearchData
   sources: unknown[]
   siteSources: TopicSourcesData
   quanta: TopicQuantaData
-  entities: Record<string, unknown>
+  entities: TopicEntitiesData
   events: Record<string, unknown>
 }
 
 export interface TopicUi {
-  activeTab: 'theme' | 'sources' | 'quanta'
+  activeTab: 'theme' | 'sources' | 'quanta' | 'entities'
 }
 
 function getInitialQuanta(): TopicQuantaData {
+  return {
+    items: [],
+    total: 0,
+    isLoading: false,
+    error: null,
+  }
+}
+
+function getInitialEntities(): TopicEntitiesData {
   return {
     items: [],
     total: 0,
@@ -254,7 +275,7 @@ interface TopicStore {
   /** Список тем для навигации (заполняется провайдером TopicsNavProvider). */
   themesForNav: ThemeListItemDto[]
 
-  setActiveTab: (tab: 'theme' | 'sources' | 'quanta') => void
+  setActiveTab: (tab: 'theme' | 'sources' | 'quanta' | 'entities') => void
   setThemesForNav: (themes: ThemeListItemDto[]) => void
   applyThemeSuggestions: (payload: ThemePrepareResponse) => void
   suggestThemeFromDescription: () => Promise<void>
@@ -264,7 +285,7 @@ interface TopicStore {
     theme?: Partial<TopicTheme>
     searchQueries?: [SavedQuery | null, SavedQuery | null, SavedQuery | null]
     sources?: unknown[]
-    entities?: Record<string, unknown>
+    entities?: TopicEntitiesData
     events?: Record<string, unknown>
   }) => void
   setThemeTitle: (title: string) => void
@@ -352,6 +373,11 @@ interface TopicStore {
   loadQuanta: () => Promise<void>
   runSearch: () => Promise<void>
   clearQuantaError: () => void
+
+  // Entities (сущности по теме)
+  loadEntities: () => Promise<void>
+  extractEntities: () => Promise<void>
+  clearEntitiesError: () => void
 }
 
 export const useTopicStore = create<TopicStore>((set) => ({
@@ -363,7 +389,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
     sources: [],
     siteSources: getInitialSiteSources(),
     quanta: getInitialQuanta(),
-    entities: {},
+    entities: getInitialEntities(),
     events: {},
   },
   ui: {
@@ -391,7 +417,7 @@ export const useTopicStore = create<TopicStore>((set) => ({
         sources: [],
         siteSources: getInitialSiteSources(),
         quanta: getInitialQuanta(),
-        entities: {},
+        entities: getInitialEntities(),
         events: {},
       },
       ui: { activeTab: 'theme' },
@@ -2172,6 +2198,94 @@ export const useTopicStore = create<TopicStore>((set) => ({
       data: {
         ...s.data,
         quanta: { ...s.data.quanta, error: null },
+      },
+    })),
+
+  loadEntities: async () => {
+    const themeId = useTopicStore.getState().activeTopicId
+    if (!themeId) return
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        entities: { ...s.data.entities, isLoading: true, error: null },
+      },
+    }))
+    try {
+      const res = await listThemeEntities(themeId)
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          entities: {
+            items: res.items,
+            total: res.total,
+            isLoading: false,
+            error: null,
+          },
+        },
+      }))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Ошибка загрузки сущностей'
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          entities: { ...s.data.entities, isLoading: false, error: msg },
+        },
+      }))
+    }
+  },
+
+  extractEntities: async () => {
+    const state = useTopicStore.getState()
+    const themeId = state.activeTopicId
+    if (!themeId) return
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        entities: { ...s.data.entities, isLoading: true, error: null },
+      },
+    }))
+    try {
+      const res = await extractThemeEntities(themeId)
+      useTopicStore.getState().setActiveTab('entities')
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          entities: {
+            items: res.items,
+            total: res.total,
+            isLoading: false,
+            error: null,
+          },
+        },
+      }))
+    } catch (e) {
+      const isAbort = e instanceof Error && e.name === 'AbortError'
+      const msg = isAbort
+        ? 'Извлечение заняло слишком много времени. Обновите список сущностей — часть данных могла сохраниться.'
+        : e instanceof Error
+          ? e.message
+          : 'Ошибка извлечения сущностей'
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          entities: { ...s.data.entities, isLoading: false, error: msg },
+        },
+      }))
+    }
+  },
+
+  clearEntitiesError: () =>
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        entities: { ...s.data.entities, error: null },
       },
     })),
 

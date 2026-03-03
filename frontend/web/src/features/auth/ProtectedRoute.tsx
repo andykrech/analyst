@@ -9,7 +9,7 @@ import { ApiError } from '@/shared/api/apiClient'
 import './ProtectedRoute.css'
 
 const DEFAULT_TOPIC_URL = '/topic/theme'
-const TOPIC_URLS = ['/topic/theme', '/topic/sources', '/topic/quanta'] as const
+const TOPIC_URLS = ['/topic/theme', '/topic/sources', '/topic/quanta', '/topic/entities'] as const
 
 function isValidTopicUrl(url: string): url is (typeof TOPIC_URLS)[number] {
   return TOPIC_URLS.includes(url as (typeof TOPIC_URLS)[number])
@@ -17,9 +17,10 @@ function isValidTopicUrl(url: string): url is (typeof TOPIC_URLS)[number] {
 
 function topicUrlToTab(
   url: string
-): 'theme' | 'sources' | 'quanta' {
+): 'theme' | 'sources' | 'quanta' | 'entities' {
   if (url === '/topic/sources') return 'sources'
   if (url === '/topic/quanta') return 'quanta'
+  if (url === '/topic/entities') return 'entities'
   return 'theme'
 }
 
@@ -94,6 +95,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
               skip401Redirect: true,
             })
             useTopicStore.getState().loadThemeFromApi(themeResponse)
+            useTopicStore.getState().loadEntities()
             const url =
               savedUrl && isValidTopicUrl(savedUrl) ? savedUrl : DEFAULT_TOPIC_URL
             useTopicStore.getState().setActiveTab(topicUrlToTab(url))

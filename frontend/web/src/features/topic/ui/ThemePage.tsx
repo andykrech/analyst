@@ -729,6 +729,7 @@ export function ThemePage() {
       })
       const fullTheme = await themesApi.getTheme(createResponse.id)
       loadThemeFromApi(fullTheme)
+      useTopicStore.getState().loadEntities()
       const listResponse = await themesApi.getThemes()
       setThemesForNav(listResponse.themes ?? [])
     } catch (e) {

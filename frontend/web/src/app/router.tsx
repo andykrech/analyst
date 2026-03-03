@@ -7,6 +7,7 @@ import { AppLayout } from '@/app/layout/AppLayout'
 import { ThemePage } from '@/features/topic/ui/ThemePage'
 import { SourcesPage } from '@/features/topic/ui/SourcesPage'
 import { QuantaPage } from '@/features/quanta'
+import { EntitiesPage } from '@/features/entity'
 
 export const router = createBrowserRouter([
   {
@@ -55,6 +56,10 @@ export const router = createBrowserRouter([
           {
             path: 'quanta',
             element: <QuantaPage />,
+          },
+          {
+            path: 'entities',
+            element: <EntitiesPage />,
           },
         ],
       },

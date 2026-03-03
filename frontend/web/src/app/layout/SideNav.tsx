@@ -73,6 +73,7 @@ export function SideNav() {
     try {
       const response = await themesApi.getTheme(themeId, { skip401Redirect: true })
       loadThemeFromApi(response)
+      useTopicStore.getState().loadEntities()
       navigate('/topic/theme')
     } catch {
       // ошибка загрузки — оставляем как есть
