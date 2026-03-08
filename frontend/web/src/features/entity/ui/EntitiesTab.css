@@ -35,6 +35,44 @@
   margin: 0;
 }
 
+.entities-tab__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.entity-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.entity-group__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #212529;
+}
+
+.entity-group__expand {
+  margin-top: 4px;
+}
+
+.entity-group__expand-btn {
+  padding: 8px 14px;
+  font-size: 14px;
+  color: #0d6efd;
+  background: transparent;
+  border: 1px solid #0d6efd;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.entity-group__expand-btn:hover {
+  background: #0d6efd;
+  color: #fff;
+}
+
 .entity-list {
   list-style: none;
   margin: 0;

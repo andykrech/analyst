@@ -24,7 +24,6 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.modules.digest.model import DigestSourceLink
-    from app.modules.event.model import EventSourceLink
     from app.modules.site.models import Site
 
 
@@ -284,9 +283,5 @@ class SourceLink(Base):
 
     digest_source_links: Mapped[list["DigestSourceLink"]] = relationship(
         "DigestSourceLink",
-        back_populates="source_link",
-    )
-    event_source_links: Mapped[list["EventSourceLink"]] = relationship(
-        "EventSourceLink",
         back_populates="source_link",
     )

@@ -20,7 +20,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
-    from app.modules.event.model import EventDigestLink
     from app.modules.source_link.model import SourceLink
 
 
@@ -293,11 +292,6 @@ class Digest(Base):
         "DigestSourceLink",
         back_populates="digest",
         cascade="all, delete-orphan",
-    )
-    # --- Связь с событиями (через event_digests) ---
-    event_digest_links: Mapped[list["EventDigestLink"]] = relationship(
-        "EventDigestLink",
-        back_populates="digest",
     )
 
 

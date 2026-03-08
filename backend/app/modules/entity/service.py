@@ -15,6 +15,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings, get_settings
 from app.integrations.llm import LLMService
 from app.integrations.prompts import PromptService
+from app.modules.entity.extractors.person_publication_authors_extractor import (
+    apply_person_results,
+    collapse_candidates,
+    collect_candidates,
+)
 from app.modules.entity.extractors.tech_extractor import (
     TechEntitiesExtractor,
     TechEntityCandidate,
@@ -201,7 +206,28 @@ class EntitiesExtractionService:
             return 0
 
         await self._apply_extraction_results(session, quanta, per_quantum_entities)
-        processed_quanta = len({qid for qid in per_quantum_entities.keys()})
+
+        person_candidates = collect_candidates(quanta)
+        if person_candidates:
+            person_groups = collapse_candidates(person_candidates)
+            if person_groups:
+                await apply_person_results(session, person_groups)
+                logger.info(
+                    "entities_extraction: person (publication authors) groups=%s",
+                    len(person_groups),
+                )
+
+        successful_quantum_ids = {q.id for q in quanta}
+        if successful_quantum_ids:
+            await session.execute(
+                update(Quantum)
+                .where(Quantum.id.in_(list(successful_quantum_ids)))
+                .values(
+                    entity_extraction_version=self._version,
+                    updated_at=func.now(),
+                )
+            )
+        processed_quanta = len(successful_quantum_ids)
         logger.info("entities_extraction: processed quanta count=%s", processed_quanta)
         return processed_quanta
 
@@ -329,19 +355,6 @@ class EntitiesExtractionService:
 
         await self._upsert_relations(session, entities_by_key, entity_to_quanta)
         await self._upsert_aliases(session, entities_by_key, groups)
-
-        successful_quantum_ids = {
-            qid for qid in per_quantum_entities.keys() if qid in quanta_by_id
-        }
-        if successful_quantum_ids:
-            await session.execute(
-                update(Quantum)
-                .where(Quantum.id.in_(list(successful_quantum_ids)))
-                .values(
-                    entity_extraction_version=self._version,
-                    updated_at=func.now(),
-                )
-            )
 
     async def _load_existing_entities(
         self,

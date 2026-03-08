@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from pgvector.sqlalchemy import Vector
+from pgvector.sqlalchemy import Vector  # type: ignore[import]
 from sqlalchemy import DateTime, ForeignKey, String, func, text
 from sqlalchemy.dialects.postgresql import ENUM, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -20,6 +20,7 @@ _embedding_object_type_enum = ENUM(
     "quantum",
     "entity",
     "event",
+    "event_plot",  # эмбеддинг сюжета события (theme_event_plots), для семантического поиска по сюжетам
     "digest",
     "overview",
     name="embedding_object_type",

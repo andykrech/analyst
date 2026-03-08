@@ -50,9 +50,11 @@ from app.modules.entity.model import Entity  # noqa: F401
 from app.modules.relation.model import Relation  # noqa: F401
 from app.modules.event.model import (  # noqa: F401
     Event,
-    EventDigestLink,
-    EventEntityLink,
-    EventSourceLink,
+    EventAttribute,
+    EventAttributeDef,
+    EventParticipant,
+    EventPlot,
+    EventRole,
 )
 from app.integrations.embedding.model import Embedding  # noqa: F401
 
