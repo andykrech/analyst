@@ -148,3 +148,33 @@ class QuantumFilter(BaseModel):
     entity_kind: Optional[Literal["publication", "patent", "webpage"]] = None
     status: Optional[Literal["active", "duplicate", "rejected", "error"]] = None
 
+
+class QuantumEntityOut(BaseModel):
+    """Краткое представление сущности, связанной с квантoм."""
+
+    id: str
+    entity_type: str
+    normalized_name: str
+    canonical_name: str
+
+
+class QuantumPhenomenonClaimOut(BaseModel):
+    """Комбинация модификатора и условия для явления."""
+
+    modifier: str
+    condition_text: str
+
+
+class QuantumPhenomenonOut(QuantumEntityOut):
+    """Явление с набором (modifier, condition_text)."""
+
+    claims: list[QuantumPhenomenonClaimOut] = Field(default_factory=list)
+
+
+class QuantumEntitiesOut(BaseModel):
+    """Сущности, связанные с конкретным квантoм."""
+
+    tech: list[QuantumEntityOut] = Field(default_factory=list)
+    persons: list[QuantumEntityOut] = Field(default_factory=list)
+    phenomena: list[QuantumPhenomenonOut] = Field(default_factory=list)
+

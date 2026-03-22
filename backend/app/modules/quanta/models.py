@@ -229,6 +229,15 @@ class Quantum(Base):
         ),
     )
 
+    event_extraction_version: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment=(
+            "Версия экстрактора событий, которая использовалась для извлечения "
+            "событий из этого кванта; если null — извлечение ещё не выполнялось"
+        ),
+    )
+
     retriever_name: Mapped[str] = mapped_column(
         Text,
         nullable=False,

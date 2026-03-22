@@ -46,16 +46,18 @@ from app.modules.source_link.model import SourceLink  # noqa: F401
 from app.modules.quanta.models import Quantum  # noqa: F401
 from app.modules.search_run.model import SearchRun  # noqa: F401
 from app.modules.digest.model import Digest, DigestSourceLink  # noqa: F401
-from app.modules.entity.model import Entity  # noqa: F401
-from app.modules.relation.model import Relation  # noqa: F401
-from app.modules.event.model import (  # noqa: F401
-    Event,
-    EventAttribute,
-    EventAttributeDef,
-    EventParticipant,
-    EventPlot,
-    EventRole,
+from app.modules.entity.model import (  # noqa: F401
+    Abbreviation,
+    AbbreviationAtom,
+    AbbreviationCluster,
+    Atom,
+    Cluster,
+    ClusterAtom,
+    ThemeStats,
 )
+from app.modules.relation.model import Relation  # noqa: F401
+from app.modules.event.model import Event, EventParticipant, EventPlot, EventRole  # noqa: F401
+from app.modules.landscape.model import Landscape  # noqa: F401
 from app.integrations.embedding.model import Embedding  # noqa: F401
 
 # add your model's MetaData object here

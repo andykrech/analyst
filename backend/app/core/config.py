@@ -117,7 +117,7 @@ class Settings:
     DEEPSEEK_API_KEY: SecretStr = SecretStr(_str("DEEPSEEK_API_KEY", "dev-deepseek-api-key-change-me"))
     DEEPSEEK_BASE_URL: str = _str("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
     DEEPSEEK_MODEL: str = _str("DEEPSEEK_MODEL", "deepseek-chat")
-    DEEPSEEK_TIMEOUT_S: int = _int("DEEPSEEK_TIMEOUT_S", 60)
+    DEEPSEEK_TIMEOUT_S: int = _int("DEEPSEEK_TIMEOUT_S", 120)
     DEEPSEEK_PRICE_PROMPT_PER_1M: Decimal = _decimal("DEEPSEEK_PRICE_PROMPT_PER_1M", 0)
     DEEPSEEK_PRICE_COMPLETION_PER_1M: Decimal = _decimal("DEEPSEEK_PRICE_COMPLETION_PER_1M", 0)
     DEEPSEEK_CURRENCY: str = _str("DEEPSEEK_CURRENCY", "USD")
@@ -189,8 +189,22 @@ class Settings:
     )
     ENTITY_EXTRACTION_VERSION: str = _str(
         "ENTITY_EXTRACTION_VERSION",
-        "v1.0",
+        "v2.0",
     )
+
+    # Извлечение событий из квантов (MVP)
+    BATCH_SIZE_FOR_EVENTS_EXTRACTION: int = _int(
+        "BATCH_SIZE_FOR_EVENTS_EXTRACTION",
+        50,
+    )
+    EVENT_EXTRACTION_VERSION: str = _str(
+        "EVENT_EXTRACTION_VERSION",
+        "mvp.v1",
+    )
+
+    # Ландшафт темы (LLM): лимит размера промпта (символы) и ответа (max_tokens)
+    LANDSCAPE_MAX_PROMPT_CHARS: int = _int("LANDSCAPE_MAX_PROMPT_CHARS", 180_000)
+    LANDSCAPE_MAX_OUTPUT_TOKENS: int = _int("LANDSCAPE_MAX_OUTPUT_TOKENS", 8192)
 
     @property
     def llm_registry(self) -> dict[str, ProviderConfig]:

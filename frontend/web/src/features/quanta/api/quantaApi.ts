@@ -1,6 +1,7 @@
 import { apiClient } from '@/shared/api/apiClient'
 import type {
   QuantumListOutDto,
+  QuantumEntitiesOutDto,
   SearchCollectByThemeRequestDto,
   SearchCollectByThemeResponseDto,
 } from './dto'
@@ -18,6 +19,12 @@ export function listThemeQuanta(
   const q = search.toString()
   const url = `/api/v1/themes/${themeId}/quanta${q ? `?${q}` : ''}`
   return apiClient.get<QuantumListOutDto>(url)
+}
+
+/** GET /api/v1/quanta/{quantumId}/entities */
+export function getQuantumEntities(quantumId: string): Promise<QuantumEntitiesOutDto> {
+  const url = `/api/v1/quanta/${quantumId}/entities`
+  return apiClient.get<QuantumEntitiesOutDto>(url)
 }
 
 /** Таймаут запроса поиска (поиск + перевод; на бэкенде таймаут = батчи × 60 с, здесь запас на ~10 батчей). */

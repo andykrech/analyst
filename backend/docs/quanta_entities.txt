@@ -1,0 +1,999 @@
+===
+Наименование кванта: Damage detection based on sparse virtual element boundary measurement using metal-core piezoelectric fiber
+summary_text:
+Pseudo-excitation approach is a recently developed vibration-based damage detection method, exhibiting some appealing features for structural health monitoring applications. However, two main bottlenecking problems, that is, dense measurement points and venerable noise immunity, hamper its use in practical applications. This article tackles these problems by proposing a novel method based on sparse virtual element boundary measurement using metal-core piezoelectric fiber sensors. Different from the local “point-by-point” interrogation modality used in the original pseudo-excitation approach, the proposed method divides the entire structure into several virtual elements to construct a damage location index, describing the damage-induced dynamic perturbation in the corresponding virtual element. To avoid the high-order derivative calculation, which is mainly responsible to the low noise robustness of the original pseudo-excitation approach, metal-core piezoelectric fiber sensors are used to directly measure the surface strains, but only at the virtual element boundaries, leading to a significantly reduced number of measurement points. Experiment is designed and carried out using a cantilever beam, in which a 10-metal-core piezoelectric fiber sensor array is embedded in the structure. Along with the sparse laser Doppler vibrometer measurement, a normalized damage location index is constructed. Results demonstrate that the proposed method not only enhances the noise robustness but also allows a significant reduction in the number of measurement points.
+
+Технологии:
+  normalized_name="pseudo-excitation method", canonical_name="Метод псевдовозбуждения"
+  normalized_name="metal-core piezoelectric fiber", canonical_name="Пьезоэлектрическое волокно с металлической сердцевиной"
+  normalized_name="laser doppler vibrometer", canonical_name="Лазерный доплеровский виброметр"
+
+Персоны:
+  normalized_name="chao zhang", canonical_name="Chao Zhang"
+  normalized_name="cheng li", canonical_name="Cheng Li"
+  normalized_name="jinhao qiu", canonical_name="Jinhao Qiu"
+  normalized_name="hongyuan wang", canonical_name="Hongyuan Wang"
+
+Явления:
+  normalized_name="damage detection"
+  canonical_name="Обнаружение повреждений"
+  модификатор: none
+  условие: 
+
+  normalized_name="noise immunity"
+  canonical_name="Помехоустойчивость"
+  модификатор: down
+  условие: in the original pseudo-excitation approach
+
+  normalized_name="noise robustness"
+  canonical_name="Устойчивость к шуму"
+  модификатор: up
+  условие: in the proposed method
+
+  normalized_name="number of measurement points"
+  canonical_name="Количество точек измерения"
+  модификатор: down
+  условие: in the proposed method
+
+===
+Наименование кванта: Crack interaction with microstructure
+summary_text:
+Designing microstructure for damage tolerance requires a detailed understanding of how an advancing crack interacts with the microstructure (and sometimes modifies it locally) at multiple length scales. Advances in experimental techniques, such as the availability of well-controlled straining stages for optical and electron microscopes, the focused ion beam, electron backscattered diffraction, and nanoindentation, enable probing at these length scales in real time and through interrupted tests. Simultaneously, increasing computational power coupled with new computational methods, such as finite element analysis (FEA) incorporating cohesive elements at the continuum level, discrete dislocation methodology at the mesoscopic level, and coupled atomistic/continuum methods that transitions atomic level information to the mesoscopic level, have made it possible to begin addressing these complex problems. By reviewing crack growth in a variety of multiphase alloys including steels, titanium aluminides, Mo alloys, and nanocrystalline metals, we demonstrate various aspects of crack interaction with microstructure, and how these problems are being addressed through experiments and computations.
+
+Технологии:
+  normalized_name="focused ion beam", canonical_name="Сфокусированный ионный пучок"
+  normalized_name="electron backscatter diffraction", canonical_name="Обратнорассеянная электронная дифракция"
+  normalized_name="nanoindentation", canonical_name="Наноиндентирование"
+  normalized_name="finite element analysis", canonical_name="Метод конечных элементов"
+  normalized_name="cohesive zone model", canonical_name="Модель когезионной зоны"
+  normalized_name="discrete dislocation dynamics", canonical_name="Дискретная динамика дислокаций"
+  normalized_name="atomistic continuum coupling", canonical_name="Связь атомистического и континуального описаний"
+
+Персоны:
+  normalized_name="sharvan kumar", canonical_name="Sharvan Kumar"
+  normalized_name="w.a. curtin", canonical_name="W.a. Curtin"
+
+Явления:
+  normalized_name="crack interaction with microstructure"
+  canonical_name="Взаимодействие трещины с микроструктурой"
+  модификатор: none
+  условие: 
+
+  normalized_name="crack growth"
+  canonical_name="Рост трещины"
+  модификатор: none
+  условие:
+
+===
+Наименование кванта: Fatigue Crack Propagation in Metals and Alloys
+summary_text:
+Foreword. Preface. Symbols and Abbreviations. 1 Introduction. 2 Basic Concepts of Metal Fatigue and Fracture in the Engineering Design Process. 2.1 Historical Overview. 2.2 Metal Fatigue, Crack Propagation and Service-Life Prediction: A Brief Introduction. 2.2.1 Fundamental Terms in Fatigue of Materials. 2.2.2 Fatigue-Life Prediction: Total-Life and Safe-Life Approach. 2.2.3 Fatigue-Life Prediction: Damage-Tolerant Approach. 2.2.4 Methods of Fatigue-Life Prediction at a Glance. 2.3 Basic Concepts of Technical Fracture Mechanics. 2.3.1 The K Concept of LEFM. 2.3.2 Crack-Tip Plasticity: Concepts of Plastic-Zone Size. 2.3.3 Crack-Tip Plasticity: The J Integral. 3 Experimental Approaches to Crack Propagation. 3.1 Mechanical Testing. 3.1.1 Testing Systems. 3.1.2 Specimen Geometries. 3.1.3 Local Strain Measurement: The ISDG Technique. 3.2 Crack-Propagation Measurements. 3.2.1 Potential-Drop Concepts and Fracture Mechanics Experiments. 3.2.2 In Situ Observation of the Crack Length. 3.3 Methods of Microstructural Analysis and Quantitative Characterization of Grain and Phase Boundaries. 3.3.1 Analytical SEM: Topography Contrast to Study Fracture Surfaces. 3.3.2 SEM Imaging by Backscattered Electrons and EBSD. 3.3.3 Evaluation of Kikuchi Patterns: Automated EBSD. 3.3.4 Orientation Analysis Using TEM and X-Ray Diffraction. 3.3.5 Mathematical and Graphical Description of Crystallographic Orientation Relationships. 3.3.6 Microstructure Characterization by TEM. 3.3.7 Further Methods to Characterize Mechanical Damage Mechanisms in Materials. 3.4 Reproducibility of Experimentally Studying the Mechanical Behavior of Materials. 4 Physical Metallurgy of the Deformation Behavior of Metals and Alloys. 4.1 Elastic Deformation. 4.2 Plastic Deformation by Dislocation Motion. 4.3 Activation of Slip Planes in Single- and Polycrystalline Materials. 4.4 Special Features of the Cyclic Deformation of Metallic Materials. 5 Initiation of Microcracks. 5.1 Crack Initiation: Definition and Significance. 5.1.1 Influence of Notches, Surface Treatment and Residual Stresses. 5.2 Influence of Microstructual Factors on the Initiation of Fatigue Cracks. 5.2.1 Crack Initiation at the Surface: General Remarks. 5.2.2 Crack Initiation at Inclusions and Pores. 5.2.3 Crack Initiation at Persistent Slip Bands. 5.3 Crack Initiation by Elastic Anisotropy. 5.3.1 Definition and Significance of Elastic Anisotropy. 5.3.2 Determination of Elastic Constants and Estimation of the Elastic Anisotropy. 5.3.3 FE Calculations of Elastic Anisotropy Stresses to Predict Crack Initiation Sites. 5.3.4 Analytical Calculation of Elastic Anisotropy Stresses. 5.4 Intercrystalline and Transcrystalline Crack Initiation. 5.4.1 Influence Parameters for Intercrystalline Crack Initiation. 5.4.2 Crack Initiation at Elevated Temperature and Environmental Effects. 5.4.3 Transgranular Crack Initiation. 5.5 Microstructurally Short Cracks and the Fatigue Limit. 5.6 Crack Initiation in Inhomogeneous Materials: Cellular Metals. 6 Crack Propagation: Microstructural Aspects. 6.1 Special Features of the Propagation of Microstructurally Short Fatigue Cracks. 6.1.1 Definition of Short and Long Cracks. 6.2 Transgranular Crack Propagation. 6.2.1 Crystallographic Crack Propagation: Interactions with Grain Boundaries. 6.2.2 Mode I Crack Propagation Governed by Cyclic Crack-Tip Blunting. 6.2.3 Influence of Grain Size, Second Phases and Precipitates on the Propagation Behavior of Microstructurally Short Fatigue Cracks. 6.3 Significance of Crack-Closure Effects and Overloads. 6.3.1 General Idea of Crack Closure During Fatigue-Crack Propagation. 6.3.2 Plasticity-Induced Crack Closure. 6.3.3 Influence of Overloads in Plasticity-Induced Crack Closure. 6.3.4 Roughness-Induced Crack Closure. 6.3.5 Oxide- and Transformation-Induced Crack Closure. 6.3.6 &delta K/K max Thresholds: An Alternative to the Crack-Closure Concept. 6.3.7 Development of Crack Closure in the Short Crack Regime. 6.4 Short and Long Fatigue Cracks: The Transition from Mode II to Mode I Crack Propagation. 6.4.1 Development of the Crack Aspect Ratio a/c. 6.4.2 Coalescence of Short Cracks. 6.5 Intercrystalline Crack Propagation at Elevated Temperatures: The Mechanism of Dynamic Embrittlement. 6.5.1 Environmentally Assisted Intercrystalline Crack Propagation in Nickel-Based Superalloys: Possible Mechanisms. 6.5.2 Mechanism of Dynamic Embrittlement as a Generic Phenomenon: Examples. 6.5.3 Oxygen-Induced Intercrystalline Crack Propagation: Dynamic Embrittlement of Alloy 718. 6.5.4 Increasing the Resistance to Intercrystalline Crack Propagation by Dynamic Embrittlement: Grain-Boundary Engineering. 7 Modeling Crack Propagation Accounting for Microstructural Features. 7.1 General Strategies of Fatigue Life Assessment. 7.2 Modeling of Short-Crack Propagation. 7.2.1 Short-Crack Models: An Overview. 7.2.2 Model of Navarro and de los Rios. 7.3 Numerical Modeling of Short-Crack Propagation by Means of a Boundary Element Approach. 7.3.1 Basic Modeling Concept. 7.3.2 Slip Transmission in Polycrystalline Microstructures. 7.3.3 Simulation of Microcrack Propagation in Synthetic Polycrystalline Microstructures. 7.3.4 Transition from Mode II to Mode I Crack Propagation. 7.3.5 Future Aspects of Applying the Boundary Element Method to Short-Fatigue-Crack Propagation. 7.4 Modeling Dwell-Time Cracking: A Grain-Boundary Diffusion Approach. 8 Concluding Remarks. References. Subject Index.
+
+Технологии:
+  normalized_name="finite element method", canonical_name="Метод конечных элементов"
+  normalized_name="electron backscatter diffraction", canonical_name="Обратнорассеянная электронная дифракция"
+  normalized_name="linear elastic fracture mechanics", canonical_name="Механика линейно-упругого разрушения"
+  normalized_name="j-integral", canonical_name="J-интеграл"
+  normalized_name="isdg", canonical_name="Интегрированная система цифрового управления"
+  normalized_name="scanning electron microscopy", canonical_name="Сканирующая электронная микроскопия"
+  normalized_name="transmission electron microscopy", canonical_name="Просвечивающая электронная микроскопия"
+  normalized_name="x-ray diffraction", canonical_name="Рентгеноструктурный анализ"
+  normalized_name="boundary element method", canonical_name="Метод граничных элементов"
+
+Персоны:
+  normalized_name="ulrich krupp", canonical_name="Ulrich Krupp"
+
+Явления:
+  normalized_name="fatigue crack propagation"
+  canonical_name="Распространение усталостных трещин"
+  модификатор: none
+  условие: 
+
+  normalized_name="crack propagation"
+  canonical_name="Распространение трещин"
+  модификатор: none
+  условие: 
+
+  normalized_name="elastic deformation"
+  canonical_name="Упругая деформация"
+  модификатор: none
+  условие: 
+
+  normalized_name="plastic deformation"
+  canonical_name="Пластическая деформация"
+  модификатор: none
+  условие: 
+
+  normalized_name="cyclic deformation"
+  canonical_name="Циклическая деформация"
+  модификатор: none
+  условие: 
+
+  normalized_name="crack initiation"
+  canonical_name="Инициирование трещины"
+  модификатор: none
+  условие: 
+
+  normalized_name="crack closure"
+  canonical_name="Замыкание трещины"
+  модификатор: none
+  условие: 
+
+  normalized_name="plasticity-induced crack closure"
+  canonical_name="Закрытие трещины, вызванное пластичностью"
+  модификатор: none
+  условие: 
+
+  normalized_name="roughness-induced crack closure"
+  canonical_name="Замыкание трещины из-за шероховатости"
+  модификатор: none
+  условие: 
+
+  normalized_name="oxide-induced crack closure"
+  canonical_name="Замыкание трещин, вызванное оксидами"
+  модификатор: none
+  условие: 
+
+  normalized_name="transformation-induced crack closure"
+  canonical_name="Замыкание трещины, вызванное превращением"
+  модификатор: none
+  условие: 
+
+  normalized_name="dynamic embrittlement"
+  canonical_name="Динамическое охрупчивание"
+  модификатор: none
+  условие: 
+
+  normalized_name="oxygen-induced intercrystalline crack propagation"
+  canonical_name="Кислородное межкристаллитное распространение трещин"
+  модификатор: none
+  условие: 
+
+  normalized_name="resistance to intercrystalline crack propagation"
+  canonical_name="Сопротивление межкристаллитному распространению трещин"
+  модификатор: up
+  условие: by dynamic embrittlement: grain-boundary engineering
+
+  normalized_name="dwell-time cracking"
+  canonical_name="Трещиностойкость при длительном нагружении"
+  модификатор: none
+  условие:
+
+===
+Наименование кванта: ACOUSTIC EMISSION MONITORING OF FATIGUE DAMAGE IN METALS
+summary_text:
+Abstract The objective of this study was to investigate and develop/adapt acoustic emission (AE) methods for detection and characterization of fatigue damage growth in metals. The materials investigated were 2024-T3 aluminum and 4340 steel. Edge-notch and compact tension specimens were tested under cyclic tensile loading. The investigation consisted of signal/noise discrimination, direct crack growth monitoring, acquisition of acoustic emission data, analysis of AE data and correlation of AE data and damage growth. In the case of aluminum the AE output consists of three characteristic parts corresponding to three stages of crack propagation; the first stage of high but decreasing AE rate, the second stage with a low and nearly constant rate and extending over 80% of the specimen lifetime and the third stage with increasing AE rate up to failure. The rate of AE output in the second stage can be described by a power law in terms of the stress intensity factor range, analogous to the Paris law for crack growth rate. In the case of steel AE results from crack extension, notch tip plasticity and closure, and plasticity dominated rapid crack propagation. The various sources of AE activity were analyzed based on the phase of the loading cycle at which they occur. A high rise in AE activity in the first half of the fatigue life has been attributed to a transition from plane strain to plane stress crack propagation.
+
+Технологии:
+  normalized_name="acoustic emission", canonical_name="Акустическая эмиссия"
+  normalized_name="paris law", canonical_name="Закон Париса"
+
+Персоны:
+  normalized_name="i. m. daniel", canonical_name="I. M. Daniel"
+  normalized_name="jianqiang luo", canonical_name="Jianqiang Luo"
+  normalized_name="c.g. sifniotopoulos", canonical_name="C.g. Sifniotopoulos"
+  normalized_name="hui‐gon chun", canonical_name="Hui‐gon Chun"
+
+Явления:
+  normalized_name="crack propagation"
+  canonical_name="Распространение трещин"
+  модификатор: none
+  условие: 
+
+  normalized_name="crack propagation"
+  canonical_name="Распространение трещин"
+  модификатор: none
+  условие: transition from plane strain to plane stress
+
+  normalized_name="fatigue damage growth"
+  canonical_name="Рост усталостных повреждений"
+  модификатор: none
+  условие: 
+
+  normalized_name="ae rate"
+  canonical_name="Скорость акустической эмиссии"
+  модификатор: down
+  условие: first stage
+
+  normalized_name="ae rate"
+  canonical_name="Скорость акустической эмиссии"
+  модификатор: stable
+  условие: second stage, low and nearly constant
+
+  normalized_name="ae rate"
+  canonical_name="Скорость акустической эмиссии"
+  модификатор: up
+  условие: third stage up to failure
+
+  normalized_name="ae activity"
+  canonical_name="Активность акустической эмиссии"
+  модификатор: up
+  условие: first half of the fatigue life
+
+===
+Наименование кванта: Texture and Anisotropy: Preferred Orientations in Polycrystals and their Effect on Materials Properties
+summary_text:
+Introduction H. Mecking Part I. Description of Textures and Anisotropies: 1. Anisotropy and symmetry U. F. Kocks 2. The representation of orientations and textures U. F. Kocks 3. Determination of the orientation distribution from pole figure data J. S. Kallend 4. Pole figure measurements with diffraction techniques H.-R. Wenk 5. Typical textures in metals A. D. Rollett and S. I. Wright 6. Typical textures in geological materials and ceramics H.-R. Wenk Part II. Anisotropic Mechanical Properties in Textured Polycrystals: 7. Tensor properties of textured polycrystals C. N. Tome 8. Kinematics and kinetics of plasticity U. F. Kocks 9. Simulation of deformation texture development for cubic metals U. F. Kocks 10. Effects of texture on plasticity M. G. Stout and U. F. Kocks 11. Self consistent modeling of heterogeneous plasticity C. N. Tome and G. R. Canova 12. Finite element modeling of heterogeneous plasticity P. R. Dawson and A. J. Beaudoin, Jr. Part III. Some Applications: 13. Finite element simulations of metal forming P. R. Dawson and A. J. Beaudoin, Jr. 14. Plasticity modeling in minerals and rocks H.-R. Wenk Appendix: the elastic inclusion problem C. N. Tome.
+
+Технологии:
+  normalized_name="finite element method", canonical_name="Метод конечных элементов"
+  normalized_name="self-consistent modeling", canonical_name="Самосогласованное моделирование"
+
+Персоны:
+  normalized_name="u.f. kocks", canonical_name="U.f. Kocks"
+  normalized_name="c.n. tomé", canonical_name="C.n. Tomé"
+  normalized_name="hans‐rudolf wenk", canonical_name="Hans‐rudolf Wenk"
+
+Явления:
+  (нет)
+
+===
+Наименование кванта: Measurements and Interpretations of Sliding Wear Damage in Metals
+summary_text:
+Research on sliding friction and wear of metals has involved studies of subsurface microstructural deformation. This paper considers the difficulties of measuring deformation and analyzing the implications of such studies on several bases: (1) defining the physical extent of sliding-induced deformation, (2) making appropriate measurements of deformation for complex tribological conditions, and (3) correlating microstructural wear damage with the measurable friction forces on sliding contacts. Data for unlubricated block-on-ring tests of Cu and 1020 steel on 4619 steel are used to demonstrate limitations and correlations possible with metallographic studies in tribology.
+
+Технологии:
+  (нет)
+
+Персоны:
+  normalized_name="peter j. blau", canonical_name="Peter J. Blau"
+
+Явления:
+  normalized_name="sliding friction"
+  canonical_name="Скользящее трение"
+  модификатор: none
+  условие: 
+
+  normalized_name="wear"
+  canonical_name="Износ"
+  модификатор: none
+  условие: 
+
+  normalized_name="subsurface microstructural deformation"
+  canonical_name="Подповерхностная микроструктурная деформация"
+  модификатор: none
+  условие: 
+
+  normalized_name="deformation"
+  canonical_name="Деформация"
+  модификатор: none
+  условие: sliding-induced
+
+  normalized_name="wear damage"
+  canonical_name="Повреждение от износа"
+  модификатор: none
+  условие: microstructural
+
+  normalized_name="friction forces"
+  canonical_name="Силы трения"
+  модификатор: none
+  условие: on sliding contacts
+
+===
+Наименование кванта: In-Process Detection of Cutting Tool Damage by Acoustic Emission Measurement
+summary_text:
+New method for in-process detection of cutting tool damage, such as wear, fracture and cracking was proposed. In the present study, the acoustic emission signal from the metal cutting process was monitored in order to identify the state of the cutting tool edge. The flank wear of the cutting tool was successfully measured by monitoring the gradual increase of the acoustic emission signal level. In-process detection of the cutting tool fracture was also possible by monitoring the stepwise increase in the amplitude level or the outbreak of burst-type acoustic emission signals. Finally, the feasibility of the in-process detection of tool cracking was investigated using the same sensor. Microprocessor was used to process the data obtained and to indicate the state of the cutting tool damage.
+
+Технологии:
+  normalized_name="acoustic emission", canonical_name="Акустическая эмиссия"
+  normalized_name="microprocessor", canonical_name="Микропроцессор"
+
+Персоны:
+  normalized_name="ichiro inasaki", canonical_name="Ichiro Inasaki"
+  normalized_name="sakae yonetsu", canonical_name="Sakae Yonetsu"
+
+Явления:
+  normalized_name="acoustic emission signal level"
+  canonical_name="Уровень сигнала акустической эмиссии"
+  модификатор: up
+  условие: during flank wear of the cutting tool
+
+  normalized_name="amplitude level"
+  canonical_name="Уровень амплитуды"
+  модификатор: up
+  условие: during cutting tool fracture
+
+  normalized_name="burst-type acoustic emission signals"
+  canonical_name="Сигналы акустической эмиссии взрывного типа"
+  модификатор: up
+  условие: during cutting tool fracture
+
+===
+Наименование кванта: Research Progress in Nonlinear Ultrasonic Testing for Early Damage in Metal Materials
+summary_text:
+There are some limitations when conventional ultrasonic testing methods are used for testing early damage in metal parts. With the continuous development of acoustics and materials science, nonlinear ultrasonic nondestructive testing technology has been used for testing of early damage in metal materials. In order to better understand the basic theory and research progress of the nonlinear ultrasonic testing technology, the classical nonlinear ultrasonic theoretical models, including the dislocation monopole model, dislocation dipole model, precipitate-dislocation pinning model, and contact nonlinear ultrasonic theory-microcrack model, are analyzed in depth. This paper introduces the application and research progress of nonlinear ultrasonic detection technology, which is derived from different acoustic nonlinear effects, such as higher harmonic, wave mixing and modulation, sub-harmonic, resonance frequency spectrum analysis, and non-linear ultrasonic phased array imaging. The key technologies and problems are summarized to provide a reference for the further development and promotion of nonlinear ultrasonic non-destructive testing technology.
+
+Технологии:
+  normalized_name="nonlinear ultrasonic testing", canonical_name="Нелинейное ультразвуковое тестирование"
+  normalized_name="dislocation monopole model", canonical_name="Модель монополя дислокаций"
+  normalized_name="dislocation dipole model", canonical_name="Модель дипольной дислокации"
+  normalized_name="precipitate-dislocation pinning model", canonical_name="Модель закрепления дислокаций осадками"
+  normalized_name="microcrack model", canonical_name="Модель микротрещин"
+  normalized_name="higher harmonic", canonical_name="Высшая гармоника"
+  normalized_name="wave mixing", canonical_name="Волновое смешение"
+  normalized_name="subharmonic", canonical_name="Субгармоника"
+  normalized_name="resonance frequency analysis", canonical_name="Анализ резонансной частоты"
+  normalized_name="ultrasonic phased array imaging", canonical_name="Ультразвуковая фазированная решётка"
+
+Персоны:
+  normalized_name="xiaoling yan", canonical_name="Xiaoling Yan"
+  normalized_name="houpu wang", canonical_name="Houpu Wang"
+  normalized_name="xiaozhi fan", canonical_name="Xiaozhi Fan"
+
+Явления:
+  normalized_name="development of acoustics and materials science"
+  canonical_name="Развитие акустики и материаловедения"
+  модификатор: up
+  условие: continuous
+
+  normalized_name="early damage in metal materials"
+  canonical_name="Ранние повреждения в металлических материалах"
+  модификатор: none
+  условие: 
+
+  normalized_name="acoustic nonlinear effects"
+  canonical_name="Нестационарные акустические эффекты"
+  модификатор: none
+  условие: 
+
+  normalized_name="higher harmonic"
+  canonical_name="Высшая гармоника"
+  модификатор: none
+  условие: 
+
+  normalized_name="wave mixing and modulation"
+  canonical_name="Смешение и модуляция волн"
+  модификатор: none
+  условие: 
+
+  normalized_name="sub-harmonic"
+  canonical_name="Субгармонический"
+  модификатор: none
+  условие: 
+
+  normalized_name="development and promotion of nonlinear ultrasonic non-destructive testing technology"
+  canonical_name="Разработка и внедрение технологии нелинейной ультразвуковой неразрушающей диагностики"
+  модификатор: up
+  условие: further
+
+===
+Наименование кванта: MONITORING OF METAL FATIGUE DAMAGE USING ACOUSTIC EMISSION AND THERMOGRAPHY
+summary_text:
+Acoustic emission (AE) supplies information on the fracture behavior of different materials. In this study, AE activity was recorded in metal coupons with a V-shape notch, which were loaded in fatigue until final failure. AE parameters exhibit a sharp increase approximately 1000 cycles before final failure. The use of AE parameters is discussed both in terms of characterization of the damage mechanisms and as a tool for the prediction of ultimate fatigue life. Additionally, a nondestructive methodology based on lock-in thermography is applied to determine the crack growth rate using thermographic mapping of the material undergoing fatigue. The thermographic results on the crack growth rate of aluminum alloys were then correlated with measurements obtained by the conventional compliance method, and found to be in agreement.
+
+Технологии:
+  normalized_name="acoustic emission", canonical_name="Акустическая эмиссия"
+  normalized_name="lock-in thermography", canonical_name="Термография с синхронным детектированием"
+  normalized_name="compliance method", canonical_name="Метод соответствия"
+
+Персоны:
+  normalized_name="dimitrios g. aggelis", canonical_name="Dimitrios G. Aggelis"
+  normalized_name="e. z. kordatos", canonical_name="E. Z. Kordatos"
+  normalized_name="theodore e. matikas", canonical_name="Theodore E. Matikas"
+
+Явления:
+  normalized_name="ae activity"
+  canonical_name="Активность акустической эмиссии"
+  модификатор: up
+  условие: approximately 1000 cycles before final failure
+
+  normalized_name="crack growth rate"
+  canonical_name="Скорость роста трещины"
+  модификатор: none
+  условие:
+
+===
+Наименование кванта: On interrelation of damage accumulation in structural steels and physical parameters estimated by methods of acoustic emission and metal magnetic memory
+summary_text:
+The kinetics of microcrack accumulation at various stages of tension of smooth specimens of structural steels 20, 45, and 12Kh18N9T is studied. The microcrack length, the total number of microcracks, and the relative fraction of damaged surface are estimated, and a correlation of these characteristics with the time dependences of the acoustic emission parameters, the magnetic memory of metals, and the velocity and the attenuation of longitudinal ultrasonic waves is found.
+
+Технологии:
+  normalized_name="acoustic emission", canonical_name="Акустическая эмиссия"
+  normalized_name="metal magnetic memory", canonical_name="Металломагнитная память"
+  normalized_name="ultrasonic waves", canonical_name="Ультразвуковые волны"
+
+Персоны:
+  normalized_name="л. р. ботвина", canonical_name="Л. Р. Ботвина"
+  normalized_name="a. p. soldatenkov", canonical_name="A. P. Soldatenkov"
+  normalized_name="m. r. tyutin", canonical_name="M. R. Tyutin"
+  normalized_name="yu. a. demina", canonical_name="Yu. A. Demina"
+  normalized_name="v. p. levin", canonical_name="V. P. Levin"
+  normalized_name="t. b. petersen", canonical_name="T. B. Petersen"
+
+Явления:
+  normalized_name="damage accumulation"
+  canonical_name="Накопление повреждений"
+  модификатор: up
+  условие: at various stages of tension of smooth specimens of structural steels
+
+  normalized_name="microcrack accumulation"
+  canonical_name="Накопление микротрещин"
+  модификатор: up
+  условие: at various stages of tension of smooth specimens of structural steels
+
+  normalized_name="acoustic emission parameters"
+  canonical_name="Параметры акустической эмиссии"
+  модификатор: none
+  условие: 
+
+  normalized_name="magnetic memory of metals"
+  canonical_name="Магнитная память металлов"
+  модификатор: none
+  условие: 
+
+  normalized_name="velocity of longitudinal ultrasonic waves"
+  canonical_name="Скорость продольных ультразвуковых волн"
+  модификатор: none
+  условие: 
+
+  normalized_name="attenuation of longitudinal ultrasonic waves"
+  canonical_name="Затухание продольных ультразвуковых волн"
+  модификатор: none
+  условие:
+
+===
+Наименование кванта: Plasticity: from Crystal Lattice to Macroscopic Phenomena
+summary_text:
+New representations concerning plasticity physics in crystals are discussed. The model of plastic flow is suggested, which can describe its main regularities. With the use of the experimental investigation, it is shown that the plastic flow localization plays the role in the evolution of plastic deformation. Obtained data are explained with the application of the principles of nonequilibrium-systems’ theory. The quasi-particle is introduced for the description of plasticity phenomenon. It is established the relation between plasticity characteristics of metals and their position in Periodic table of the elements. A new model is elaborated to address localized plastic-flow evolution in solids. The basic assumption of the proposed model is that the elementary plasticity acts evolving in the deforming of medium would generate acoustic emission pulses, which interact with the plasticity carriers and initiate new elementary shears. As found experimentally, the macrolocalization of plastic flow involves a variety of autowave processes. To address the phenomenon of localized plastic-flow autowaves, a new quasi-particle called ‘autolocalizon’ is introduced; the criterion of validity of the concept is assessed.
+
+Технологии:
+  normalized_name="acoustic emission", canonical_name="Акустическая эмиссия"
+  normalized_name="plastic flow", canonical_name="Пластическое течение"
+  normalized_name="nonequilibrium systems theory", canonical_name="Теория неравновесных систем"
+  normalized_name="quasiparticle", canonical_name="Квазичастица"
+  normalized_name="periodic table", canonical_name="Периодическая таблица"
+  normalized_name="autowave processes", canonical_name="Автоволновые процессы"
+  normalized_name="autolocalizon", canonical_name="Автолокализация"
+
+Персоны:
+  normalized_name="л. б. зуев", canonical_name="Л. Б. Зуев"
+  normalized_name="с. а. баранникова", canonical_name="С. А. Баранникова"
+  normalized_name="в. и. данилов", canonical_name="В. И. Данилов"
+  normalized_name="в. в. горбатенко", canonical_name="В. В. Горбатенко"
+
+Явления:
+  normalized_name="plastic deformation"
+  canonical_name="Пластическая деформация"
+  модификатор: none
+  условие: 
+
+  normalized_name="plastic flow"
+  canonical_name="Пластическое течение"
+  модификатор: none
+  условие: 
+
+  normalized_name="plastic flow"
+  canonical_name="Пластическое течение"
+  модификатор: none
+  условие: localized
+
+  normalized_name="plastic flow"
+  canonical_name="Пластическое течение"
+  модификатор: none
+  условие: evolution
+
+  normalized_name="plastic flow localization"
+  canonical_name="Локализация пластического течения"
+  модификатор: none
+  условие: 
+
+  normalized_name="plasticity"
+  canonical_name="Пластичность"
+  модификатор: none
+  условие: 
+
+  normalized_name="acoustic emission pulses"
+  canonical_name="Импульсы акустической эмиссии"
+  модификатор: none
+  условие: generated by elementary plasticity acts in deforming medium
+
+  normalized_name="elementary shears"
+  canonical_name="Элементарные сдвиги"
+  модификатор: none
+  условие: initiated by interaction of acoustic emission pulses with plasticity carriers
+
+  normalized_name="macrolocalization of plastic flow"
+  canonical_name="Макролокализация пластического течения"
+  модификатор: none
+  условие: 
+
+  normalized_name="autowave processes"
+  canonical_name="Автоволновые процессы"
+  модификатор: none
+  условие: involved in macrolocalization of plastic flow
+
+  normalized_name="localized plastic-flow autowaves"
+  canonical_name="Локализованные автоволны пластического течения"
+  модификатор: none
+  условие:
+
+===
+Наименование кванта: Assessment of crystal plasticity finite element simulations of the hot deformation of metals from local strain and orientation measurements
+summary_text:
+Simulations of the deformation of microstructures at high homologous temperatures have been carried out using a Crystal Plasticity Finite Element (CPFE) model to predict texture and grain structure deformation in Face-Centred-Cubic (FCC) metals deformed under conditions representative of hot forming operations. Results show that the model can quantitatively predict the location and intensity of the main deformation texture components of a AA5052 aluminium alloy deformed at 300 °C under Plane Strain Compression (PSC). Simulations also reasonably predict the range of strain values measured using microgrids in the microstructure of a Fe-30wt%Ni alloy deformed at 1000 °C using a new experimental procedure. However, the model fails to reproduce accurately intra-granular strain distribution patterns. Results at room temperature, after a tensile test carried out inside a Scanning Electron Microscope (SEM) on the same model alloy, show a much closer match between simulation and experimental results. Despite discrepancies for some local deformation features, the model predicts the formation of intense deformation bands running at 45° with respect to the tensile axis and located along the same grain boundaries as in the experiment. Results, therefore, highlight the limitations of deterministic CPFE simulations for situations where the grain size to sample thickness ratio is small and for which the sub-surface grain geometry strongly affects surface strains. They also show that reliable predictions of the statistical response of a polycrystalline aggregate can be obtained for the hot deformation of metals which controls microstructure evolution during the processing of metals.
+
+Технологии:
+  normalized_name="finite element method", canonical_name="Метод конечных элементов"
+  normalized_name="crystal plasticity finite element", canonical_name="Метод конечных элементов кристаллической пластичности"
+  normalized_name="face-centered cubic", canonical_name="Гранецентрированная кубическая решётка"
+  normalized_name="plane strain compression", canonical_name="Сжатие в условиях плоской деформации"
+  normalized_name="scanning electron microscope", canonical_name="Сканирующий электронный микроскоп"
+
+Персоны:
+  normalized_name="c. pinna", canonical_name="C. Pinna"
+  normalized_name="ya‐qian lan", canonical_name="Ya‐qian Lan"
+  normalized_name="miin fung kiu", canonical_name="Miin Fung Kiu"
+  normalized_name="panos efthymiadis", canonical_name="Panos Efthymiadis"
+  normalized_name="m. lópez-pedrosa", canonical_name="M. López-pedrosa"
+  normalized_name="didier farrugia", canonical_name="Didier Farrugia"
+
+Явления:
+  normalized_name="deformation"
+  canonical_name="Деформация"
+  модификатор: none
+  условие: at high homologous temperatures
+
+  normalized_name="texture"
+  canonical_name="Текстура"
+  модификатор: none
+  условие: deformation under conditions representative of hot forming operations
+
+  normalized_name="grain structure deformation"
+  canonical_name="Деформация зеренной структуры"
+  модификатор: none
+  условие: in Face-Centred-Cubic (FCC) metals deformed under conditions representative of hot forming operations
+
+  normalized_name="strain"
+  canonical_name="Деформация"
+  модификатор: none
+  условие: measured using microgrids in the microstructure of a Fe-30wt%Ni alloy deformed at 1000 °C
+
+  normalized_name="intra-granular strain distribution"
+  canonical_name="Внутризеренное распределение деформаций"
+  модификатор: none
+  условие: 
+
+  normalized_name="deformation bands"
+  canonical_name="Полосы деформации"
+  модификатор: up
+  условие: after a tensile test carried out inside a Scanning Electron Microscope (SEM) on the same model alloy at room temperature
+
+  normalized_name="surface strains"
+  canonical_name="Поверхностные деформации"
+  модификатор: none
+  условие: affected by sub-surface grain geometry when the grain size to sample thickness ratio is small
+
+  normalized_name="microstructure evolution"
+  canonical_name="Эволюция микроструктуры"
+  модификатор: none
+  условие: during the processing of metals
+
+===
+Наименование кванта: An experimental methodology to relate local strain to microstructural texture
+summary_text:
+This paper introduces an experimental methodology for obtaining high resolution full-field strain measurements in polycrystalline metals. The (sub)grain level resolution of these measurements was indispensable for relating measured strain fields to observed microstructure in the material. Microstructural information was obtained through electron backscatter diffraction and the optical technique of digital image correlation (DIC) was used to acquire full-field deformation measurements. By spatially overlaying both sets of results, the effects of different microstructural features such as orientation, grain boundary character, misorientation between grains, and twin boundaries on material response can be quantitatively studied. To obtain the necessary resolution for such measurements, the images used in DIC had to be captured at high magnifications. This necessity reduces the field of view and constrains the area of interest that can be monitored. To address this issue, results from adjacent measurement areas are combined together to create a data set with high spatial strain resolution over a larger region than can otherwise be observed. The procedure for performing this technique is outlined here, along with benefits, drawbacks, possible modifications, and example applications of the technique to cyclic plasticity and fatigue crack growth.
+
+Технологии:
+  normalized_name="electron backscatter diffraction", canonical_name="Обратнорассеянная электронная дифракция"
+  normalized_name="digital image correlation", canonical_name="Цифровая корреляция изображений"
+
+Персоны:
+  normalized_name="jay carroll", canonical_name="Jay Carroll"
+  normalized_name="wael abuzaid", canonical_name="Wael Abuzaid"
+  normalized_name="john lambros", canonical_name="John Lambros"
+  normalized_name="hüseyin şehitoğlu", canonical_name="Hüseyin Şehitoğlu"
+
+Явления:
+  normalized_name="strain"
+  canonical_name="Деформация"
+  модификатор: none
+  условие: 
+
+  normalized_name="material response"
+  canonical_name="Реакция материала"
+  модификатор: none
+  условие: 
+
+  normalized_name="field of view"
+  canonical_name="Поле зрения"
+  модификатор: down
+  условие: when images are captured at high magnifications for DIC
+
+  normalized_name="cyclic plasticity"
+  canonical_name="Циклическая пластичность"
+  модификатор: none
+  условие: 
+
+  normalized_name="fatigue crack growth"
+  canonical_name="Рост усталостной трещины"
+  модификатор: none
+  условие:
+
+===
+Наименование кванта: Damage characterisation on PP-hemp/aluminium fibre–metal laminates using acoustic emission
+summary_text:
+In this work, type 2024-O aluminium from ALCOA with a nominal thickness of 0.5 mm was stacked on both sides of a hemp polypropylene composite with stacking sequence 1Al/10PP/1H/10PP/1Al. Tensile and planar indentation loading of the fibre–metal laminates so obtained have been followed in real time using acoustic emission monitoring and related to damage characterisation obtained by scanning electron microscopy. The results confirm that natural fibre-based fibre–metal laminates may have significant potential in engineering, whenever an easier recyclability is desirable, although the properties of hemp fibre composite core are likely to affect their performance during loading, especially at stress levels exceeding their elastic limit. Acoustic emission analysis, based on the study of counts, amplitude and duration, confirms that hemp fibre fracture plays a significant role during tensile loading, whilst, during indentation, collapse is originated by the star-shaped cracking of aluminium sheets. The possible improvement of interface strength, with respect to the simple film stacking process adopted for composite manufacturing, would need attention in future work.
+
+Технологии:
+  normalized_name="acoustic emission", canonical_name="Акустическая эмиссия"
+  normalized_name="scanning electron microscopy", canonical_name="Сканирующая электронная микроскопия"
+  normalized_name="acoustic emission analysis", canonical_name="Акустико-эмиссионный анализ"
+
+Персоны:
+  normalized_name="carlo santulli", canonical_name="Carlo Santulli"
+  normalized_name="hoo tien nicholas kuan", canonical_name="Hoo Tien Nicholas Kuan"
+  normalized_name="fabrizio sarasini", canonical_name="Fabrizio Sarasini"
+  normalized_name="igor maria de rosa", canonical_name="Igor Maria De Rosa"
+  normalized_name="w.j. cantwell", canonical_name="W.j. Cantwell"
+
+Явления:
+  normalized_name="damage characterisation"
+  canonical_name="Характеризация повреждений"
+  модификатор: none
+  условие: using acoustic emission
+
+  normalized_name="damage characterisation"
+  canonical_name="Характеризация повреждений"
+  модификатор: none
+  условие: obtained by scanning electron microscopy
+
+  normalized_name="acoustic emission monitoring"
+  canonical_name="Мониторинг акустической эмиссии"
+  модификатор: none
+  условие: in real time during tensile and planar indentation loading
+
+  normalized_name="recyclability"
+  canonical_name="Возможность переработки"
+  модификатор: up
+  условие: whenever desirable
+
+  normalized_name="properties of hemp fibre composite core"
+  canonical_name="Свойства композитного сердечника из конопляного волокна"
+  модификатор: down
+  условие: affecting performance during loading, especially at stress levels exceeding their elastic limit
+
+  normalized_name="hemp fibre fracture"
+  canonical_name="Разрушение волокон конопли"
+  модификатор: up
+  условие: during tensile loading
+
+  normalized_name="collapse"
+  canonical_name="Коллапс"
+  модификатор: none
+  условие: originated by the star-shaped cracking of aluminium sheets during indentation
+
+  normalized_name="interface strength"
+  canonical_name="Прочность границы раздела"
+  модификатор: up
+  условие: possible improvement with respect to the simple film stacking process
+
+===
+Наименование кванта: Monitoring of fatigue damage in metal plates by acoustic emission and thermography
+summary_text:
+Acoustic Emission (AE) supplies information on the fracturing behavior of different materials. In this study, AE activity was recorded during fatigue experiments in metal CT specimens with a V-shape notch which were loaded in fatigue until final failure. AE parameters exhibit a sharp increase approximately 1000 cycles before than final failure. Therefore, the use of acoustic emission parameters is discussed both in terms of characterization of the damage mechanisms, as well as a tool for the prediction of ultimate life of the material under fatigue. Additionally, an innovative nondestructive methodology based on lock-in thermography is developed to determine the crack growth rate using thermographic mapping of the material undergoing fatigue. The thermographic results on the crack growth rate of aluminium alloys were then correlated with measurements obtained by the conventional compliance method, and found to be in agreement.
+
+Технологии:
+  normalized_name="acoustic emission", canonical_name="Акустическая эмиссия"
+  normalized_name="lock-in thermography", canonical_name="Термография с синхронным детектированием"
+  normalized_name="compliance method", canonical_name="Метод соответствия"
+  normalized_name="thermography", canonical_name="Термография"
+
+Персоны:
+  normalized_name="dimitrios g. aggelis", canonical_name="Dimitrios G. Aggelis"
+  normalized_name="e. z. kordatos", canonical_name="E. Z. Kordatos"
+  normalized_name="theodore e. matikas", canonical_name="Theodore E. Matikas"
+
+Явления:
+  normalized_name="ae activity"
+  canonical_name="Активность акустической эмиссии"
+  модификатор: up
+  условие: during fatigue experiments in metal CT specimens with a V-shape notch which were loaded in fatigue until final failure
+
+  normalized_name="crack growth rate"
+  canonical_name="Скорость роста трещины"
+  модификатор: none
+  условие: using thermographic mapping of the material undergoing fatigue
+
+  normalized_name="ae parameters"
+  canonical_name="Параметры акустической эмиссии"
+  модификатор: up
+  условие: approximately 1000 cycles before final failure
+
+  normalized_name="damage mechanisms"
+  canonical_name="Механизмы повреждений"
+  модификатор: none
+  условие: 
+
+  normalized_name="ultimate life of the material"
+  canonical_name="Предельный срок службы материала"
+  модификатор: none
+  условие: under fatigue
+
+  normalized_name="fatigue damage"
+  canonical_name="Усталостное повреждение"
+  модификатор: none
+  условие: in metal plates
+
+  normalized_name="fracturing behavior"
+  canonical_name="Поведение при разрушении"
+  модификатор: none
+  условие: of different materials
+
+===
+Наименование кванта: Development of a technology for continuous acoustic emission monitoring of in-service damageability of metal in safety-related NPP equipment
+summary_text:
+Safe operation of the NPP main equipment whose design life has expired requires the development of new approaches to integrity diagnosis and monitoring due to high level of metal ageing. These approaches should be based on nondestructive testing methods which make it possible to inspect equipment not only during the period of repair, but also in conditions of operation when dangerous defects are initiating and growing. One of highly efficient present-day techniques for nondestructive testing suitable for use in the process of operation is acoustic emission method. The paper presents the results of the activities to develop a multi-parameter system for acoustic emission monitoring of the nuclear plant equipment damageability in the process of the unit operation with specific features of the NPP control taken into account. The stages of the activities are described with all factors of impacts on the developed system assessed and taken into account, namely the need for keeping the system serviceable during long-term operation in high-temperature conditions, a complicated geometry of the monitored item, and an increased level of noise, as well as the acquisition and transmission of monitoring data via intranet systems for being processed and displayed online. A series of system tuning experiments conducted in laboratory conditions to refine and validate the selected monitoring techniques are described.
+
+Технологии:
+  normalized_name="acoustic emission", canonical_name="Акустическая эмиссия"
+  normalized_name="nondestructive testing", canonical_name="Неразрушающий контроль"
+  normalized_name="intranet", canonical_name="Интранет"
+
+Персоны:
+  normalized_name="m. b. bakirov", canonical_name="M. B. Bakirov"
+  normalized_name="v. p. povarov", canonical_name="V. P. Povarov"
+  normalized_name="a. f. gromov", canonical_name="A. F. Gromov"
+  normalized_name="vasilij ivanovich levchuk", canonical_name="Vasilij Ivanovich Levchuk"
+
+Явления:
+  normalized_name="metal ageing"
+  canonical_name="Старение металла"
+  модификатор: up
+  условие: in NPP main equipment whose design life has expired
+
+  normalized_name="initiating of dangerous defects"
+  canonical_name="Инициирование опасных дефектов"
+  модификатор: none
+  условие: in conditions of operation
+
+  normalized_name="growing of dangerous defects"
+  canonical_name="Развитие опасных дефектов"
+  модификатор: none
+  условие: in conditions of operation
+
+  normalized_name="noise"
+  canonical_name="Шум"
+  модификатор: up
+  условие:
+
+===
+Наименование кванта: Practical Applicability and Limitations of the Elastic Modulus Degradation Technique for Damage Measurements in Ductile Metals
+summary_text:
+Abstract: The use of damage models require a number of material parameters the identification of which should be made, when possible, based on direct measures of the damage that develops in the material. Among the possible experimental techniques to measure the occurrence of ductile damage in metals, the measure of the damage through the degradation of the material Young’s modulus has been indicated as one of the more effective technique and used by several authors. In this paper, this technique is critically reviewed highlighting the number of issues that may affect the measure of damage. In particular, the attention is focused in the case where damage process initiates at the onset necking and develops in the post‐necking regime where stress, strain and damage are no longer uniform in the gauged section. Since geometry variations alter the reference base length for both stress and strain definition, a procedure based on the use of finite element simulation is proposed in order to account for this effect on the measure of the stiffness loss. The procedure has been applied to two class of metals: a high strength steel and high purity copper.
+
+Технологии:
+  normalized_name="finite element method", canonical_name="Метод конечных элементов"
+  normalized_name="young's modulus", canonical_name="Модуль Юнга"
+
+Персоны:
+  normalized_name="nicola bonora", canonical_name="Nicola Bonora"
+  normalized_name="andrew ruggiero", canonical_name="Andrew Ruggiero"
+  normalized_name="domenico gentile", canonical_name="Domenico Gentile"
+  normalized_name="stefania de meo", canonical_name="Stefania De Meo"
+
+Явления:
+  normalized_name="strain"
+  canonical_name="Деформация"
+  модификатор: unstable
+  условие: in the post‐necking regime where stress, strain and damage are no longer uniform in the gauged section
+
+  normalized_name="damage"
+  canonical_name="Повреждение"
+  модификатор: up
+  условие: that develops in the material
+
+  normalized_name="damage"
+  canonical_name="Повреждение"
+  модификатор: unstable
+  условие: in the post‐necking regime where stress, strain and damage are no longer uniform in the gauged section
+
+  normalized_name="ductile damage"
+  canonical_name="Пластическое повреждение"
+  модификатор: none
+  условие: in metals
+
+  normalized_name="degradation"
+  canonical_name="Деградация"
+  модификатор: down
+  условие: of the material Young’s modulus
+
+  normalized_name="damage process"
+  canonical_name="Процесс повреждения"
+  модификатор: up
+  условие: initiates at the onset necking and develops in the post‐necking regime
+
+  normalized_name="stress"
+  canonical_name="Напряжение"
+  модификатор: unstable
+  условие: in the post‐necking regime where stress, strain and damage are no longer uniform in the gauged section
+
+  normalized_name="geometry variations"
+  canonical_name="Вариации геометрии"
+  модификатор: none
+  условие: 
+
+  normalized_name="stiffness loss"
+  canonical_name="Потеря жёсткости"
+  модификатор: down
+  условие:
+
+===
+Наименование кванта: Direct imaging of short-range order and its impact on deformation in Ti-6Al
+summary_text:
+Chemical short-range order (SRO) within a nominally single-phase solid solution is known to affect the mechanical properties of alloys. While SRO has been indirectly related to deformation, direct observation of the SRO domain structure, and its effects on deformation mechanisms at the nanoscale, has remained elusive. Here, we report the direct observation of SRO in relation to deformation using energy-filtered imaging in a transmission electron microscope (TEM). The diffraction contrast is enhanced by reducing the inelastically scattered electrons, revealing subnanometer SRO-enhanced domains. The destruction of these domains by dislocation planar slip is observed after ex situ and in situ TEM mechanical testing. These results confirm the impact of SRO in Ti-Al alloys on the scale of angstroms. The direct confirmation of SRO in relationship to dislocation plasticity in metals can provide insight into how the mechanical behavior of concentrated solid solutions by the material's thermal history.
+
+Технологии:
+  normalized_name="transmission electron microscopy", canonical_name="Просвечивающая электронная микроскопия"
+  normalized_name="energy filtered imaging", canonical_name="Энергофильтрованная визуализация"
+  normalized_name="in situ mechanical testing", canonical_name="Механические испытания in situ"
+
+Персоны:
+  normalized_name="ruopeng zhang", canonical_name="Ruopeng Zhang"
+  normalized_name="shiteng zhao", canonical_name="Shiteng Zhao"
+  normalized_name="colin ophus", canonical_name="Colin Ophus"
+  normalized_name="yu deng", canonical_name="Yu Deng"
+  normalized_name="shraddha j. vachhani", canonical_name="Shraddha J. Vachhani"
+  normalized_name="burak ozdol", canonical_name="Burak Ozdol"
+  normalized_name="rachel traylor", canonical_name="Rachel Traylor"
+  normalized_name="karen c. bustillo", canonical_name="Karen C. Bustillo"
+  normalized_name="j. w. morris", canonical_name="J. W. Morris"
+  normalized_name="d. c. chrzan", canonical_name="D. C. Chrzan"
+  normalized_name="mark asta", canonical_name="Mark Asta"
+  normalized_name="andrew m. minor", canonical_name="Andrew M. Minor"
+
+Явления:
+  normalized_name="deformation"
+  canonical_name="Деформация"
+  модификатор: none
+  условие: 
+
+  normalized_name="chemical short-range order"
+  canonical_name="Химический ближний порядок"
+  модификатор: none
+  условие: 
+
+  normalized_name="destruction of sro-enhanced domains"
+  canonical_name="Разрушение доменов, усиленных sro"
+  модификатор: down
+  условие: by dislocation planar slip after ex situ and in situ TEM mechanical testing
+
+  normalized_name="dislocation planar slip"
+  canonical_name="Планарное скольжение дислокаций"
+  модификатор: none
+  условие: 
+
+  normalized_name="mechanical behavior of concentrated solid solutions"
+  canonical_name="Механическое поведение концентрированных твёрдых растворов"
+  модификатор: none
+  условие:
+
+===
+Наименование кванта: Ductile damage measurement and necking analysis of metal sheets based on digital image correlation and direct current potential drop methods
+summary_text:
+In this study, a damage measurement procedure is proposed, which combines both digital image correlation and direct current potential drop techniques to evaluate quantitatively the ductile damage in metal sheets during uniaxial tensile loading. Digital image correlation and direct current potential drop techniques are applied to measure the full-field deformation and overall electrical resistance of the region of interest of the specimen during tensile loading. The basic principles, methodology and derivation process are presented in detail. A professional data processing system based on MATLAB is developed to characterize the deformation–resistance–damage relationship during uniaxial tensile loading. The ductile damage can be evaluated conveniently by the proposed approach, and the experimental results so obtained are consistent with those derived by using micro-hardness technique. The necking stage during uniaxial tension is discussed in detail, and it has been shown that the onsets of diffused necking and localized necking can be determined according to the relationship between the major principle true strain and loading steps. Further, the onset of the localized necking can be used to estimate accurately whether the material is going to rupture.
+
+Технологии:
+  normalized_name="digital image correlation", canonical_name="Цифровая корреляция изображений"
+  normalized_name="direct current potential drop", canonical_name="Метод падения потенциала постоянного тока"
+  normalized_name="matlab", canonical_name="MATLAB"
+  normalized_name="microhardness testing", canonical_name="Испытание на микротвёрдость"
+
+Персоны:
+  normalized_name="saijun zhang", canonical_name="Saijun Zhang"
+  normalized_name="qinxiang xia", canonical_name="Qinxiang Xia"
+  normalized_name="wenfang li", canonical_name="Wenfang Li"
+  normalized_name="xuhui zhou", canonical_name="Xuhui Zhou"
+
+Явления:
+  normalized_name="ductile damage"
+  canonical_name="Пластическое повреждение"
+  модификатор: none
+  условие: during uniaxial tensile loading
+
+  normalized_name="full-field deformation"
+  canonical_name="Полнополевая деформация"
+  модификатор: none
+  условие: during tensile loading
+
+  normalized_name="overall electrical resistance"
+  canonical_name="Общее электрическое сопротивление"
+  модификатор: none
+  условие: of the region of interest of the specimen during tensile loading
+
+  normalized_name="deformation–resistance–damage relationship"
+  canonical_name="Зависимость деформации, сопротивления и повреждения"
+  модификатор: none
+  условие: during uniaxial tensile loading
+
+  normalized_name="necking"
+  canonical_name="Образование шейки"
+  модификатор: none
+  условие: during uniaxial tension
+
+  normalized_name="diffused necking"
+  canonical_name="Диффузное сужение"
+  модификатор: none
+  условие: 
+
+  normalized_name="localized necking"
+  canonical_name="Локализованное сужение"
+  модификатор: none
+  условие: 
+
+  normalized_name="major principle true strain"
+  canonical_name="Истинная деформация по главной оси"
+  модификатор: none
+  условие: 
+
+  normalized_name="rupture"
+  canonical_name="Разрыв"
+  модификатор: none
+  условие:
+
+===
+Наименование кванта: Combined Damage Index to Detect Plastic Deformation in Metals Using Acoustic Emission and Nonlinear Ultrasonics
+summary_text:
+Understanding the amount of degradation using nondestructive evaluation (NDE) methods provides an effective way of determining the fitness to service and the residual life of structural components. Due to uncertainties introduced by the single NDE method, a combined damage index using multi-sensor data increases the reliability of damage assessment. In this paper, the outputs of three NDE methods including acoustic emission (AE), linear ultrasonics (LUT), and nonlinear ultrasonics (NLUT) are merged to identify the amount of plastic deformation in aluminum 1100. The sensitivities of individual and combined methods to microstructural changes are evaluated. The coupon samples are loaded up to different strain levels and then unloaded. AE data is recorded in real time and ultrasonic data is recorded from the unloaded samples. The major features combined in the damage index are cumulative AE absolute energy and nonlinear coefficient. The microstructural state is verified with microscopic analysis and hardness testing. The developed damage index can nondestructively assess the amount of plastic deformation with higher reliability.
+
+Технологии:
+  normalized_name="acoustic emission", canonical_name="Акустическая эмиссия"
+  normalized_name="nondestructive evaluation", canonical_name="Неразрушающий контроль"
+  normalized_name="linear ultrasonics", canonical_name="Линейная ультразвуковая диагностика"
+  normalized_name="nonlinear ultrasonics", canonical_name="Нелинейная ультразвуковая диагностика"
+
+Персоны:
+  normalized_name="lu zhang", canonical_name="Lu Zhang"
+  normalized_name="sepideh karkouti oskoe", canonical_name="Sepideh Karkouti Oskoe"
+  normalized_name="hongyu li", canonical_name="Hongyu Li"
+  normalized_name="didem ozevin", canonical_name="Didem Ozevin"
+
+Явления:
+  normalized_name="plastic deformation"
+  canonical_name="Пластическая деформация"
+  модификатор: none
+  условие: 
+
+  normalized_name="strain"
+  canonical_name="Деформация"
+  модификатор: up
+  условие: different levels
+
+  normalized_name="damage"
+  canonical_name="Повреждение"
+  модификатор: none
+  условие: 
+
+  normalized_name="degradation"
+  canonical_name="Деградация"
+  модификатор: none
+  условие: 
+
+  normalized_name="uncertainties"
+  canonical_name="Неопределённости"
+  модификатор: none
+  условие: introduced by the single NDE method
+
+  normalized_name="reliability of damage assessment"
+  canonical_name="Надёжность оценки повреждений"
+  модификатор: up
+  условие: using multi-sensor data
+
+  normalized_name="microstructural changes"
+  canonical_name="Микроструктурные изменения"
+  модификатор: none
+  условие: 
+
+  normalized_name="cumulative ae absolute energy"
+  canonical_name="Суммарная абсолютная энергия аэ"
+  модификатор: none
+  условие: 
+
+  normalized_name="nonlinear coefficient"
+  canonical_name="Нелинейный коэффициент"
+  модификатор: none
+  условие: 
+
+  normalized_name="reliability"
+  canonical_name="Надёжность"
+  модификатор: up
+  условие: of nondestructive assessment of plastic deformation

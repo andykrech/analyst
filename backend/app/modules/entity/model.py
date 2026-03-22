@@ -1,288 +1,337 @@
-"""SQLAlchemy-модели для горячих сущностей и их алиасов по теме."""
+"""SQLAlchemy-модели атомов и кластеров сущностей по теме."""
+
+from __future__ import annotations
 
 import uuid
-from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
-from sqlalchemy import (
-    Boolean,
-    DateTime,
-    Float,
-    ForeignKey,
-    Index,
-    Integer,
-    Text,
-    UniqueConstraint,
-    func,
-    text,
-)
+from sqlalchemy import Float, ForeignKey, Index, Integer, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
 
-class Entity(Base):
-    """Горячие сущности по теме (минимальные поля для дедупа, списков и агрегаций)."""
+class Atom(Base):
+    """Минимальная смысловая единица: нормализованный атом в рамках темы."""
 
-    __tablename__ = "entities"
+    __tablename__ = "atoms"
     __table_args__ = (
-        Index(
-            "uq_entities_theme_type_normalized_active",
-            "theme_id",
-            "entity_type",
-            "normalized_name",
-            unique=True,
-            postgresql_where=text("deleted_at IS NULL AND status = 'active'"),
-            info={
-                "comment": (
-                    "Уникальность сущностей внутри темы по типу и нормализованному имени "
-                    "(только active и не удалённые)."
-                )
-            },
-        ),
-        Index(
-            "ix_entities_theme_id_active",
-            "theme_id",
-            "created_at",
-            postgresql_where=text("deleted_at IS NULL AND status = 'active'"),
-            postgresql_ops={"created_at": "DESC"},
-            info={
-                "comment": (
-                    "Быстрый выбор активных сущностей по теме (для списков/UI)."
-                )
-            },
-        ),
-        {
-            "comment": (
-                "Горячие сущности по теме (минимальные поля для дедупа, списков и агрегаций)."
-            ),
-        },
+        UniqueConstraint("theme_id", "lemma", name="uq_atoms_theme_id_lemma"),
+        Index("ix_atoms_theme_id", "theme_id"),
+        {"comment": "Атомы сущностей по теме (минимальные смысловые единицы)."},
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
         server_default=text("gen_random_uuid()"),
-        comment="Уникальный идентификатор сущности.",
+        comment="Уникальный идентификатор атома.",
     )
     theme_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("themes.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-        comment="Идентификатор темы, к которой относится сущность.",
+        comment="Идентификатор темы.",
     )
-    run_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("search_runs.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-        comment=(
-            "Идентификатор запуска (search_runs), в рамках которого сущность впервые "
-            "обнаружена или обновлена."
-        ),
-    )
-    entity_type: Mapped[str] = mapped_column(
+    lemma: Mapped[str] = mapped_column(
         Text,
         nullable=False,
-        server_default="other",
-        comment=(
-            "Тип сущности: person/org/tech/product/country/document/regulation/other."
-        ),
+        comment="Нормализованная лемма атома.",
     )
-    canonical_name: Mapped[str] = mapped_column(
-        Text,
-        nullable=False,
-        comment=(
-            "Каноническое имя (display name) — то, что показываем пользователю "
-            "(может быть на языке темы)."
-        ),
-    )
-    normalized_name: Mapped[str] = mapped_column(
-        Text,
-        nullable=False,
-        comment=(
-            "Нормализованное имя для дедупликации (ключ уникальности; например англ. "
-            "pivot normalized)."
-        ),
-    )
-    fingerprint: Mapped[Optional[str]] = mapped_column(
-        Text,
-        nullable=True,
-        index=True,
-        comment=(
-            "Отпечаток для дедупликации (например хэш от normalized_name + entity_type)."
-        ),
-    )
-    mention_count: Mapped[int] = mapped_column(
+    global_cluster_df: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         server_default=text("0"),
-        comment=(
-            "Сколько раз сущность упоминалась (агрегат, обновляется пайплайном)."
-        ),
+        comment="Глобальная документная частота атома по кластерам внутри темы.",
     )
-    first_seen_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="Когда сущность впервые появилась в источниках/квантах.",
+    global_score: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        server_default=text("0"),
+        comment="Агрегированная глобальная оценка значимости атома внутри темы.",
     )
-    last_seen_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-        index=True,
-        comment=(
-            "Когда сущность последний раз встречалась (для определения актуальности)."
-        ),
-    )
-    importance: Mapped[Optional[float]] = mapped_column(
+    specificity_score: Mapped[Optional[float]] = mapped_column(
         Float,
         nullable=True,
-        comment="Важность сущности для темы (например 0..1).",
+        comment="Оценка специфичности атома от 0 до 1 (1 — узкий термин, 0 — общий).",
     )
-    confidence: Mapped[Optional[float]] = mapped_column(
-        Float,
-        nullable=True,
-        comment=(
-            "Уверенность извлечения/канонизации сущности (например 0..1)."
-        ),
+
+    cluster_atoms: Mapped[List["ClusterAtom"]] = relationship(
+        "ClusterAtom",
+        back_populates="atom",
+        cascade="all, delete-orphan",
     )
-    status: Mapped[str] = mapped_column(
-        Text,
-        nullable=False,
-        server_default="active",
-        comment="Статус сущности: active/merged/deprecated/duplicate.",
-    )
-    is_user_pinned: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        server_default=text("false"),
-        comment="Закреплено пользователем как ключевая сущность.",
-    )
-    is_name_translated: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        server_default=text("false"),
-        comment="Флаг, было ли переведено наименование сущности.",
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-        comment="Дата/время создания записи сущности.",
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-        comment="Дата/время последнего изменения записи сущности.",
-    )
-    deleted_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-        comment="Мягкое удаление сущности (soft delete).",
+    abbreviation_atoms: Mapped[List["AbbreviationAtom"]] = relationship(
+        "AbbreviationAtom",
+        back_populates="atom",
+        cascade="all, delete-orphan",
     )
 
 
-class EntityAlias(Base):
-    """Алиасы сущностей по теме (для резолва кандидатов и поиска)."""
+class Cluster(Base):
+    """Составная сущность/кластер по теме, состоящий из атомов."""
 
-    __tablename__ = "entity_aliases"
+    __tablename__ = "clusters"
     __table_args__ = (
-        Index(
-            "ix_entity_aliases_lookup",
-            "theme_id",
-            "entity_type",
-            "alias_value",
-            info={
-                "comment": (
-                    "Быстрый поиск сущности по алиасу в рамках темы и типа."
-                )
-            },
-        ),
-        UniqueConstraint(
-            "entity_id",
-            "alias_value",
-            name="uq_entity_aliases_entity_alias",
-            info={
-                "comment": (
-                    "Запрет дублей: один и тот же алиас не должен повторяться у одной сущности."
-                )
-            },
-        ),
-        {
-            "comment": (
-                "Алиасы сущностей по теме (для резолва кандидатов и поиска)."
-            ),
-        },
+        UniqueConstraint("theme_id", "normalized_text", name="uq_clusters_theme_id_normalized_text"),
+        Index("ix_clusters_theme_id", "theme_id"),
+        {"comment": "Кластеры сущностей по теме (составные сущности из атомов)."},
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
         server_default=text("gen_random_uuid()"),
-        comment="Уникальный идентификатор алиаса.",
+        comment="Уникальный идентификатор кластера.",
     )
     theme_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("themes.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-        comment=(
-            "Идентификатор темы (денормализация для быстрого поиска алиасов без join)."
-        ),
+        comment="Идентификатор темы.",
     )
-    entity_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("entities.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-        comment="Идентификатор сущности, которой принадлежит алиас.",
-    )
-    entity_type: Mapped[str] = mapped_column(
+    normalized_text: Mapped[str] = mapped_column(
         Text,
         nullable=False,
-        index=True,
-        comment=(
-            "Тип сущности (денормализация для ускорения резолва по алиасу)."
-        ),
+        comment="Нормализованный текст кластера (ключ уникальности в рамках темы).",
     )
-    alias_value: Mapped[str] = mapped_column(
+    display_text: Mapped[str] = mapped_column(
         Text,
         nullable=False,
-        comment=(
-            "Значение алиаса (считается уже нормализованным; используется для поиска кандидатов)."
-        ),
+        comment="Отображаемый текст кластера.",
     )
-    lang: Mapped[Optional[str]] = mapped_column(
-        Text,
-        nullable=True,
-        comment="Язык алиаса (например en/ru/ja/und).",
-    )
-    kind: Mapped[str] = mapped_column(
+    type: Mapped[str] = mapped_column(
         Text,
         nullable=False,
-        server_default="surface",
-        comment=(
-            "Вид алиаса: surface/acronym/pivot/translation/spelling/user."
-        ),
+        server_default="other",
+        comment="Тип кластера (например person/org/tech/phenomenon/other).",
     )
-    confidence: Mapped[Optional[float]] = mapped_column(
+    global_df: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        server_default=text("0"),
+        comment="Глобальная документная частота кластера внутри темы.",
+    )
+    global_score: Mapped[float] = mapped_column(
         Float,
-        nullable=True,
-        comment="Уверенность в корректности алиаса (например 0..1).",
+        nullable=False,
+        server_default=text("0"),
+        comment="Агрегированная глобальная оценка значимости кластера внутри темы.",
     )
-    source: Mapped[str] = mapped_column(
+
+    cluster_atoms: Mapped[List["ClusterAtom"]] = relationship(
+        "ClusterAtom",
+        back_populates="cluster",
+        cascade="all, delete-orphan",
+        order_by="ClusterAtom.position",
+    )
+    abbreviation_clusters: Mapped[List["AbbreviationCluster"]] = relationship(
+        "AbbreviationCluster",
+        back_populates="cluster",
+        cascade="all, delete-orphan",
+    )
+
+
+class ClusterAtom(Base):
+    """Связь кластера с атомами (состав кластера и порядок)."""
+
+    __tablename__ = "cluster_atoms"
+    __table_args__ = (
+        UniqueConstraint(
+            "cluster_id",
+            "atom_id",
+            "position",
+            name="uq_cluster_atoms_cluster_atom_position",
+        ),
+        Index("ix_cluster_atoms_cluster_id", "cluster_id"),
+        Index("ix_cluster_atoms_atom_id", "atom_id"),
+        {"comment": "Связь кластеров с атомами (состав и позиция)."},
+    )
+
+    cluster_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("clusters.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+        comment="Идентификатор кластера.",
+    )
+    atom_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("atoms.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+        comment="Идентификатор атома.",
+    )
+    position: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        nullable=False,
+        comment="Позиция атома в кластере.",
+    )
+
+    cluster: Mapped["Cluster"] = relationship(
+        "Cluster",
+        back_populates="cluster_atoms",
+    )
+    atom: Mapped["Atom"] = relationship(
+        "Atom",
+        back_populates="cluster_atoms",
+    )
+
+
+class Abbreviation(Base):
+    """Аббревиатура в рамках темы с привязкой к атомам и кластерам."""
+
+    __tablename__ = "abbreviations"
+    __table_args__ = (
+        Index("ix_abbreviations_theme_id", "theme_id"),
+        {"comment": "Аббревиатуры по теме для резолва при извлечении сущностей."},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+        comment="Уникальный идентификатор записи аббревиатуры.",
+    )
+    theme_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("themes.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Идентификатор темы.",
+    )
+    abbreviation: Mapped[str] = mapped_column(
         Text,
         nullable=False,
-        server_default="ai",
-        comment="Источник алиаса: ai/user/import/pattern.",
+        comment="Текст аббревиатуры.",
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
+
+    abbreviation_atoms: Mapped[List["AbbreviationAtom"]] = relationship(
+        "AbbreviationAtom",
+        back_populates="abbreviation",
+        cascade="all, delete-orphan",
+    )
+    abbreviation_clusters: Mapped[List["AbbreviationCluster"]] = relationship(
+        "AbbreviationCluster",
+        back_populates="abbreviation",
+        cascade="all, delete-orphan",
+    )
+
+
+class AbbreviationAtom(Base):
+    """Связь аббревиатуры с атомом."""
+
+    __tablename__ = "abbreviation_atoms"
+    __table_args__ = (
+        Index("ix_abbreviation_atoms_abbreviation_id", "abbreviation_id"),
+        Index("ix_abbreviation_atoms_atom_id", "atom_id"),
+        {"comment": "Связь аббревиатур с атомами."},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+        comment="Уникальный идентификатор связи аббревиатура–атом.",
+    )
+    abbreviation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("abbreviations.id", ondelete="CASCADE"),
         nullable=False,
-        comment="Дата/время добавления алиаса.",
+        index=True,
+        comment="Идентификатор аббревиатуры.",
+    )
+    atom_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("atoms.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Идентификатор атома.",
+    )
+
+    abbreviation: Mapped["Abbreviation"] = relationship(
+        "Abbreviation",
+        back_populates="abbreviation_atoms",
+    )
+    atom: Mapped["Atom"] = relationship("Atom", back_populates="abbreviation_atoms")
+
+
+class AbbreviationCluster(Base):
+    """Связь аббревиатуры с кластером."""
+
+    __tablename__ = "abbreviation_clusters"
+    __table_args__ = (
+        Index("ix_abbreviation_clusters_abbreviation_id", "abbreviation_id"),
+        Index("ix_abbreviation_clusters_cluster_id", "cluster_id"),
+        {"comment": "Связь аббревиатур с кластерами."},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+        comment="Уникальный идентификатор связи аббревиатура–кластер.",
+    )
+    abbreviation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("abbreviations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Идентификатор аббревиатуры.",
+    )
+    cluster_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("clusters.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Идентификатор кластера.",
+    )
+
+    abbreviation: Mapped["Abbreviation"] = relationship(
+        "Abbreviation",
+        back_populates="abbreviation_clusters",
+    )
+    cluster: Mapped["Cluster"] = relationship(
+        "Cluster",
+        back_populates="abbreviation_clusters",
+    )
+
+
+class ThemeStats(Base):
+    """Статистика по теме для нормализации оценок (max_cluster_df, max_atom_cluster_df)."""
+
+    __tablename__ = "theme_stats"
+    __table_args__ = (
+        Index("ix_theme_stats_theme_id", "theme_id"),
+        {"comment": "Статистика по теме (максимальные частоты для расчёта global_score)."},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+        comment="Уникальный идентификатор записи статистики темы.",
+    )
+    theme_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("themes.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Идентификатор темы.",
+    )
+    max_cluster_df: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        server_default=text("0"),
+        comment="Максимальная документная частота кластера в теме (для расчёта global_score кластеров).",
+    )
+    max_atom_cluster_df: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        server_default=text("0"),
+        comment="Максимальная частота атома по кластерам в теме (для расчёта global_score атомов).",
     )

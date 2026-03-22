@@ -167,3 +167,47 @@ class Relation(Base):
         nullable=True,
         comment="Мягкое удаление связи.",
     )
+
+
+class RelationClaim(Base):
+    """
+    Утверждения о свойствах связи (например модификатор и условие для явления).
+    Одна связь (relation) может иметь несколько записей — по одной на каждую
+    комбинацию свойств (напр. phenomenon: modifier + condition_text).
+    """
+
+    __tablename__ = "relation_claims"
+    __table_args__ = (
+        {"comment": "Утверждения о свойствах связи (модификатор явления, условия и т.п.)"},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+        comment="Уникальный идентификатор утверждения.",
+    )
+    relation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("relations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Связь, к которой относится утверждение (например entity–quantum, type=mentions).",
+    )
+    property_type: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Тип свойства (напр. phenomenon_modifier_condition) — для фильтрации и интерпретации properties_json.",
+    )
+    properties_json: Mapped[dict] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+        comment="Структурированные данные свойства (напр. modifier, condition_text для явлений).",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        comment="Дата/время создания записи утверждения.",
+    )

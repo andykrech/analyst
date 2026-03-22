@@ -1,24 +1,24 @@
-"""Pydantic-схемы для сущностей и алиасов."""
+"""Pydantic-схемы для кластеров сущностей (API)."""
 
 from __future__ import annotations
-
-from datetime import datetime
 
 from pydantic import BaseModel, Field
 
 
-class EntityAliasOut(BaseModel):
-    """Алиас сущности для API."""
+class ClusterOut(BaseModel):
+    """Кластер сущности для API."""
 
-    alias_value: str
-    kind: str = "surface"
-    source: str = "ai"
-    lang: str | None = None
-    confidence: float | None = None
+    id: str
+    theme_id: str
+    type: str
+    normalized_text: str
+    display_text: str
+    global_df: int = 0
+    global_score: float = 0.0
 
 
 class EntityOut(BaseModel):
-    """Сущность для API (с алиасами)."""
+    """Сущность для API (совместимость: кластер как сущность)."""
 
     id: str
     theme_id: str
@@ -26,15 +26,9 @@ class EntityOut(BaseModel):
     canonical_name: str
     normalized_name: str
     mention_count: int = 0
-    first_seen_at: datetime | None = None
-    last_seen_at: datetime | None = None
     importance: float | None = None
-    confidence: float | None = None
-    status: str = "active"
-    is_user_pinned: bool = False
-    aliases: list[EntityAliasOut] = Field(default_factory=list)
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    global_df: int = 0
+    global_score: float = 0.0
 
 
 class EntityListOut(BaseModel):

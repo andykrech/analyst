@@ -24,6 +24,10 @@ export function TopicTabs() {
   const quantaLoading = useTopicStore((s) => s.data.quanta.isLoading)
   const extractEntities = useTopicStore((s) => s.extractEntities)
   const entitiesLoading = useTopicStore((s) => s.data.entities.isLoading)
+  const extractEvents = useTopicStore((s) => s.extractEvents)
+  const eventsLoading = useTopicStore((s) => s.data.events.extract.isLoading)
+  const buildLandscape = useTopicStore((s) => s.buildLandscape)
+  const landscapeBuildLoading = useTopicStore((s) => s.data.landscape.build.isLoading)
 
   const [saving, setSaving] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -114,6 +118,24 @@ export function TopicTabs() {
         >
           Сущности
         </NavLink>
+        <NavLink
+          to="/topic/events"
+          className={({ isActive }) =>
+            `topic-tabs__link ${isActive ? 'topic-tabs__link--active' : ''}`
+          }
+          onClick={() => setActiveTab('events')}
+        >
+          События
+        </NavLink>
+        <NavLink
+          to="/topic/landscape"
+          className={({ isActive }) =>
+            `topic-tabs__link ${isActive ? 'topic-tabs__link--active' : ''}`
+          }
+          onClick={() => setActiveTab('landscape')}
+        >
+          Ландшафт
+        </NavLink>
       </nav>
       <div className="topic-tabs__actions">
         {successMessage && (
@@ -143,6 +165,24 @@ export function TopicTabs() {
           title={!activeTopicId ? 'Сначала сохраните тему' : undefined}
         >
           {entitiesLoading ? 'Извлечение…' : 'Найти сущности'}
+        </button>
+        <button
+          type="button"
+          className="topic-tabs__search-btn"
+          onClick={() => extractEvents()}
+          disabled={eventsLoading || !activeTopicId}
+          title={!activeTopicId ? 'Сначала сохраните тему' : undefined}
+        >
+          {eventsLoading ? 'Извлечение…' : 'Извлечь события'}
+        </button>
+        <button
+          type="button"
+          className="topic-tabs__search-btn"
+          onClick={() => void buildLandscape()}
+          disabled={landscapeBuildLoading || !activeTopicId}
+          title={!activeTopicId ? 'Сначала сохраните тему' : undefined}
+        >
+          {landscapeBuildLoading ? 'Построение…' : 'Построить ландшафт'}
         </button>
         <button
           type="button"

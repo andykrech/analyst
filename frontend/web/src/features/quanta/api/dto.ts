@@ -49,6 +49,28 @@ export interface QuantumListOutDto {
   total: number
 }
 
+export interface QuantumEntityRefDto {
+  id: string
+  entity_type: string
+  normalized_name: string
+  canonical_name: string
+}
+
+export interface QuantumPhenomenonClaimDto {
+  modifier: string
+  condition_text: string
+}
+
+export interface QuantumPhenomenonDto extends QuantumEntityRefDto {
+  claims: QuantumPhenomenonClaimDto[]
+}
+
+export interface QuantumEntitiesOutDto {
+  tech: QuantumEntityRefDto[]
+  persons: QuantumEntityRefDto[]
+  phenomena: QuantumPhenomenonDto[]
+}
+
 /** Запрос на запуск поиска по теме (POST /api/v1/search/collect-by-theme). */
 export interface SearchCollectByThemeRequestDto {
   theme_id: string

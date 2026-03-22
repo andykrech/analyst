@@ -1,0 +1,24 @@
+.landscape-tab {
+  padding: 1rem 1.25rem;
+  max-width: 56rem;
+}
+
+.landscape-tab__error {
+  color: var(--color-danger, #c62828);
+  margin-bottom: 1rem;
+}
+
+.landscape-tab__loading {
+  color: var(--color-muted, #666);
+}
+
+.landscape-tab__empty {
+  color: var(--color-muted, #666);
+}
+
+.landscape-tab__text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+  line-height: 1.55;
+}

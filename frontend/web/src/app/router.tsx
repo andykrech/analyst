@@ -8,6 +8,8 @@ import { ThemePage } from '@/features/topic/ui/ThemePage'
 import { SourcesPage } from '@/features/topic/ui/SourcesPage'
 import { QuantaPage } from '@/features/quanta'
 import { EntitiesPage } from '@/features/entity'
+import { EventsPage } from '@/features/event/ui/EventsPage'
+import { LandscapePage } from '@/features/landscape'
 
 export const router = createBrowserRouter([
   {
@@ -60,6 +62,14 @@ export const router = createBrowserRouter([
           {
             path: 'entities',
             element: <EntitiesPage />,
+          },
+          {
+            path: 'events',
+            element: <EventsPage />,
+          },
+          {
+            path: 'landscape',
+            element: <LandscapePage />,
           },
         ],
       },

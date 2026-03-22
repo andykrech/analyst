@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from collections import Counter, defaultdict
@@ -20,19 +21,24 @@ from app.modules.entity.extractors.person_publication_authors_extractor import (
     collapse_candidates,
     collect_candidates,
 )
+from app.modules.entity.extractors.phenomenon_extractor import (
+    PhenomenonEntitiesExtractor,
+    PhenomenonExtractorResult,
+)
 from app.modules.entity.extractors.tech_extractor import (
     TechEntitiesExtractor,
     TechEntityCandidate,
 )
-from app.modules.entity.model import Entity, EntityAlias
+from app.modules.entity.model import Cluster
 from app.modules.quanta.models import Quantum
-from app.modules.relation.model import Relation
+from app.modules.relation.model import Relation, RelationClaim
 from app.modules.theme.model import Theme
 
 
 logger = logging.getLogger(__name__)
 
 PROMPT_NAME_ENTITY_NAME_TRANSLATE = "entity.entities_name_translate.v1"
+RELATION_CLAIM_PROPERTY_PHENOMENON = "phenomenon_modifier_condition"
 
 
 def _expand_canonical_aliases(canonical: str) -> list[str]:
@@ -55,13 +61,30 @@ def _expand_canonical_aliases(canonical: str) -> list[str]:
     return result
 
 
+def _normalize_name_for_key(s: str) -> str:
+    """Lowercase и схлопнуть пробелы для normalized_name."""
+    if not s or not isinstance(s, str):
+        return ""
+    return re.sub(r"\s+", " ", s.strip()).lower()
+
+
 def _capitalize_first(s: str) -> str:
-    """Первая буква заглавная, остальное без изменений."""
+    """Первая буква заглавная, остальное без изменений (для персон и т.п.)."""
     if not s:
         return s
     if len(s) == 1:
         return s.upper()
     return s[0].upper() + s[1:]
+
+
+def _capitalize_first_letter_only(s: str) -> str:
+    """Только первая буква заглавная, остальные строчные (для явлений)."""
+    s = (s or "").strip()
+    if not s:
+        return ""
+    if len(s) == 1:
+        return s.upper()
+    return s[0].upper() + s[1:].lower()
 
 
 def _normalize_lang_code(lang: str | None) -> str | None:
@@ -100,6 +123,24 @@ class _EntityGroup:
     max_date_at: Any | None
 
 
+@dataclass
+class _PhenomenonOccurrence:
+    quantum_id: Any
+    modifier: str
+    condition_text: str
+
+
+@dataclass
+class _PhenomenonGroup:
+    theme_id: Any
+    normalized_name: str
+    quantum_ids: set[Any]
+    occurrences: list[_PhenomenonOccurrence]
+    surface_forms: set[str]
+    min_date_at: Any | None
+    max_date_at: Any | None
+
+
 class EntitiesExtractionService:
     """Сервис батчевого извлечения сущностей из квантов (MVP: только tech)."""
 
@@ -113,6 +154,7 @@ class EntitiesExtractionService:
         self._batch_size = self._settings.BATCH_SIZE_FOR_ENTITIES_EXTRACTION
         self._version = self._settings.ENTITY_EXTRACTION_VERSION
         self._extractor = TechEntitiesExtractor(llm_service, prompt_service)
+        self._phenomenon_extractor = PhenomenonEntitiesExtractor(llm_service, prompt_service)
         self._llm_service = llm_service
         self._prompt_service = prompt_service
 
@@ -217,8 +259,22 @@ class EntitiesExtractionService:
                     len(person_groups),
                 )
 
+        per_quantum_phenomena = await self._extract_phenomena_for_quanta(quanta)
+        logger.info(
+            "entities_extraction: phenomenon extraction done, quanta_with_phenomena=%s",
+            len(per_quantum_phenomena),
+        )
+        if per_quantum_phenomena:
+            logger.info("entities_extraction: applying phenomenon results...")
+            await self._apply_phenomenon_results(session, quanta, per_quantum_phenomena)
+            logger.info("entities_extraction: phenomenon results applied")
+
         successful_quantum_ids = {q.id for q in quanta}
         if successful_quantum_ids:
+            logger.info(
+                "entities_extraction: updating entity_extraction_version for quanta=%s",
+                len(successful_quantum_ids),
+            )
             await session.execute(
                 update(Quantum)
                 .where(Quantum.id.in_(list(successful_quantum_ids)))
@@ -227,8 +283,10 @@ class EntitiesExtractionService:
                     updated_at=func.now(),
                 )
             )
+            await session.flush()
+            logger.info("entities_extraction: entity_extraction_version updated in DB")
         processed_quanta = len(successful_quantum_ids)
-        logger.info("entities_extraction: processed quanta count=%s", processed_quanta)
+        logger.info("entities_extraction: processed quanta count=%s, returning", processed_quanta)
         return processed_quanta
 
     async def _fetch_quanta_batch(
@@ -299,20 +357,19 @@ class EntitiesExtractionService:
         if not groups:
             return
 
-        existing_entities = await self._load_existing_entities(session, groups.keys())
+        existing_clusters = await self._load_existing_clusters(session, groups.keys(), cluster_type="tech")
         primary_languages = await self._load_primary_languages_for_themes(
             session, {k.theme_id for k in groups.keys()}
         )
-        entities_by_key: dict[_EntityGroupKey, Entity] = {}
+        clusters_by_key: dict[_EntityGroupKey, Cluster] = {}
 
         for key, group in groups.items():
-            existing = existing_entities.get(key)
+            existing = existing_clusters.get(key)
             if existing is None:
                 primary_lang = primary_languages.get(group.theme_id, "en")
                 src_lang = _normalize_lang_code(group.language)
                 tgt_lang = _normalize_lang_code(primary_lang) or "en"
-                canonical_name = None
-                is_name_translated = False
+                display_text = None
                 if src_lang and tgt_lang and src_lang.lower() != tgt_lang.lower():
                     translated = await self._translate_entity_name(
                         term=group.normalized_name,
@@ -320,63 +377,50 @@ class EntitiesExtractionService:
                         target_language=tgt_lang,
                     )
                     if translated:
-                        canonical_name = _capitalize_first(translated)
-                        is_name_translated = True
-                if not canonical_name:
-                    canonical_name = _capitalize_first(group.normalized_name)
-                    is_name_translated = False
+                        display_text = _capitalize_first(translated)
+                if not display_text:
+                    display_text = _capitalize_first(group.normalized_name)
 
-                ent = Entity(
+                cluster = Cluster(
                     theme_id=group.theme_id,
-                    run_id=None,
-                    entity_type="tech",
-                    canonical_name=canonical_name,
-                    normalized_name=group.normalized_name,
-                    mention_count=len(group.quantum_ids),
-                    first_seen_at=group.min_date_at,
-                    last_seen_at=group.max_date_at,
-                    is_name_translated=is_name_translated,
+                    normalized_text=group.normalized_name,
+                    display_text=display_text,
+                    type="tech",
+                    global_df=len(group.quantum_ids),
+                    global_score=0.0,
                 )
-                session.add(ent)
-                entities_by_key[key] = ent
+                session.add(cluster)
+                clusters_by_key[key] = cluster
             else:
-                existing.mention_count = (existing.mention_count or 0) + len(
-                    group.quantum_ids
-                )
-                if group.min_date_at is not None:
-                    if existing.first_seen_at is None or group.min_date_at < existing.first_seen_at:
-                        existing.first_seen_at = group.min_date_at
-                if group.max_date_at is not None:
-                    if existing.last_seen_at is None or group.max_date_at > existing.last_seen_at:
-                        existing.last_seen_at = group.max_date_at
-                entities_by_key[key] = existing
+                existing.global_df = (existing.global_df or 0) + len(group.quantum_ids)
+                clusters_by_key[key] = existing
 
         await session.flush()
 
-        await self._upsert_relations(session, entities_by_key, entity_to_quanta)
-        await self._upsert_aliases(session, entities_by_key, groups)
+        await self._upsert_relations(session, clusters_by_key, entity_to_quanta)
 
-    async def _load_existing_entities(
+    async def _load_existing_clusters(
         self,
         session: AsyncSession,
         keys: Iterable[_EntityGroupKey],
-    ) -> dict[_EntityGroupKey, Entity]:
+        *,
+        cluster_type: str = "tech",
+    ) -> dict[_EntityGroupKey, Cluster]:
         theme_ids = {k.theme_id for k in keys}
         normalized_names = {k.normalized_name for k in keys}
         if not theme_ids or not normalized_names:
             return {}
-        stmt = select(Entity).where(
-            Entity.theme_id.in_(list(theme_ids)),
-            Entity.entity_type == "tech",
-            Entity.normalized_name.in_(list(normalized_names)),
-            Entity.deleted_at.is_(None),
+        stmt = select(Cluster).where(
+            Cluster.theme_id.in_(list(theme_ids)),
+            Cluster.type == cluster_type,
+            Cluster.normalized_text.in_(list(normalized_names)),
         )
         result = await session.execute(stmt)
-        rows: list[Entity] = list(result.scalars().all())
-        by_key: dict[_EntityGroupKey, Entity] = {}
-        for ent in rows:
-            key = _EntityGroupKey(theme_id=ent.theme_id, normalized_name=ent.normalized_name)
-            by_key[key] = ent
+        rows: list[Cluster] = list(result.scalars().all())
+        by_key: dict[_EntityGroupKey, Cluster] = {}
+        for c in rows:
+            key = _EntityGroupKey(theme_id=c.theme_id, normalized_name=c.normalized_text)
+            by_key[key] = c
         return by_key
 
     async def _load_primary_languages_for_themes(
@@ -395,18 +439,18 @@ class EntitiesExtractionService:
     async def _upsert_relations(
         self,
         session: AsyncSession,
-        entities_by_key: dict[_EntityGroupKey, Entity],
+        clusters_by_key: dict[_EntityGroupKey, Cluster],
         entity_to_quanta: dict[_EntityGroupKey, set[Any]],
     ) -> None:
         rows: list[dict[str, Any]] = []
-        for key, ent in entities_by_key.items():
+        for key, cluster in clusters_by_key.items():
             quantum_ids = entity_to_quanta.get(key) or set()
             for qid in quantum_ids:
                 rows.append(
                     {
-                        "theme_id": ent.theme_id,
-                        "subject_type": "entity",
-                        "subject_id": ent.id,
+                        "theme_id": cluster.theme_id,
+                        "subject_type": "cluster",
+                        "subject_id": cluster.id,
                         "object_type": "quantum",
                         "object_id": qid,
                         "relation_type": "mentions",
@@ -435,50 +479,273 @@ class EntitiesExtractionService:
         )
         await session.execute(stmt)
 
-    async def _upsert_aliases(
+    async def _extract_phenomena_for_quanta(
+        self,
+        quanta: list[Quantum],
+    ) -> dict[Any, list[Any]]:
+        """Извлечь явления из каждого кванта через LLM. Возвращает quantum_id -> list[PhenomenonCandidate]."""
+        quanta_by_id = {q.id: q for q in quanta}
+        per_quantum: dict[Any, list[Any]] = {}
+        for q in quanta:
+            text = self._build_text_for_quantum(q)
+            if not text.strip():
+                continue
+            try:
+                result = await self._phenomenon_extractor.extract_for_text(text)
+            except Exception as e:
+                logger.warning(
+                    "entities_extraction: phenomenon extraction failed for quantum_id=%s: %s",
+                    q.id,
+                    e,
+                )
+                continue
+            if result.phenomena:
+                per_quantum[q.id] = list(result.phenomena)
+        return per_quantum
+
+    async def _apply_phenomenon_results(
         self,
         session: AsyncSession,
-        entities_by_key: dict[_EntityGroupKey, Entity],
-        groups: dict[_EntityGroupKey, _EntityGroup],
+        quanta: Iterable[Quantum],
+        per_quantum_phenomena: dict[Any, list[Any]],
     ) -> None:
-        rows: list[dict[str, Any]] = []
-        for key, group in groups.items():
-            ent = entities_by_key.get(key)
-            if ent is None:
+        from app.modules.entity.extractors.phenomenon_extractor import PhenomenonCandidate
+
+        logger.info(
+            "entities_extraction: _apply_phenomenon_results start, groups to build from %s quanta",
+            len(per_quantum_phenomena),
+        )
+        quanta_by_id = {q.id: q for q in quanta}
+        primary_languages = await self._load_primary_languages_for_themes(
+            session, {q.theme_id for q in quanta}
+        )
+
+        groups: dict[_EntityGroupKey, _PhenomenonGroup] = {}
+        for quantum_id, candidates in per_quantum_phenomena.items():
+            q = quanta_by_id.get(quantum_id)
+            if q is None:
                 continue
-            normalized_lower = (group.normalized_name or "").strip().lower()
-            for canonical_name in group.canonical_names.keys():
-                alias_value = canonical_name.strip()
-                if not alias_value:
+            theme_id = q.theme_id
+            event_date = q.date_at or q.retrieved_at
+            q_lang = _normalize_lang_code(q.language)
+
+            for cand in candidates:
+                if not isinstance(cand, PhenomenonCandidate):
                     continue
-                if alias_value.lower() == normalized_lower:
+                phenomenon_text = (cand.phenomenon or "").strip()
+                if not phenomenon_text:
                     continue
-                rows.append(
-                    {
-                        "theme_id": group.theme_id,
-                        "entity_id": ent.id,
-                        "entity_type": "tech",
-                        "alias_value": alias_value,
-                        "lang": None,
-                        "kind": "surface",
-                        "confidence": None,
-                        "source": "ai",
-                    }
+                if q_lang and q_lang.lower() != "en":
+                    translated = await self._translate_entity_name(
+                        term=phenomenon_text,
+                        source_language=q_lang,
+                        target_language="en",
+                    )
+                    normalized_name = _normalize_name_for_key(translated or phenomenon_text)
+                else:
+                    normalized_name = _normalize_name_for_key(phenomenon_text)
+                if not normalized_name:
+                    continue
+
+                key = _EntityGroupKey(theme_id=theme_id, normalized_name=normalized_name)
+                if key not in groups:
+                    groups[key] = _PhenomenonGroup(
+                        theme_id=theme_id,
+                        normalized_name=normalized_name,
+                        quantum_ids=set(),
+                        occurrences=[],
+                        surface_forms=set(),
+                        min_date_at=event_date,
+                        max_date_at=event_date,
+                    )
+                g = groups[key]
+                g.quantum_ids.add(quantum_id)
+                g.occurrences.append(
+                    _PhenomenonOccurrence(
+                        quantum_id=quantum_id,
+                        modifier=(cand.modifier or "none").strip().lower(),
+                        condition_text=(cand.condition_text or "").strip(),
+                    )
                 )
-        if not rows:
+                g.surface_forms.add(phenomenon_text)
+                if event_date is not None:
+                    if g.min_date_at is None or event_date < g.min_date_at:
+                        g.min_date_at = event_date
+                    if g.max_date_at is None or event_date > g.max_date_at:
+                        g.max_date_at = event_date
+
+        if not groups:
+            logger.info("entities_extraction: _apply_phenomenon_results: no groups, exit")
             return
 
-        stmt = (
-            insert(EntityAlias)
-            .values(rows)
-            .on_conflict_do_nothing(
-                index_elements=[
-                    EntityAlias.entity_id,
-                    EntityAlias.alias_value,
-                ]
-            )
+        logger.info("entities_extraction: _apply_phenomenon_results: groups=%s, loading existing clusters", len(groups))
+        existing = await self._load_existing_clusters(
+            session, groups.keys(), cluster_type="phenomenon"
         )
-        await session.execute(stmt)
+        primary_languages_grp = await self._load_primary_languages_for_themes(
+            session, {k.theme_id for k in groups.keys()}
+        )
+
+        to_translate: list[tuple[_EntityGroupKey, _PhenomenonGroup, str]] = []
+        for key, group in groups.items():
+            ent = existing.get(key)
+            primary_lang = primary_languages_grp.get(key.theme_id, "en")
+            tgt_lang = _normalize_lang_code(primary_lang) or "en"
+            need_canonical = ent is None or not (ent.display_text or "").strip()
+            if need_canonical and tgt_lang.lower() != "en":
+                to_translate.append((key, group, tgt_lang))
+
+        translated_by_key: dict[_EntityGroupKey, str] = {}
+        if to_translate:
+            coros = [
+                self._translate_entity_name(
+                    term=group.normalized_name,
+                    source_language="en",
+                    target_language=tgt_lang,
+                )
+                for _key, group, tgt_lang in to_translate
+            ]
+            results = await asyncio.gather(*coros, return_exceptions=True)
+            for (key, _group, _tgt_lang), raw in zip(to_translate, results, strict=True):
+                if isinstance(raw, BaseException):
+                    logger.warning(
+                        "entities_extraction: translation failed for key=%s: %s",
+                        key,
+                        raw,
+                    )
+                    continue
+                if raw:
+                    canonical_name = _capitalize_first_letter_only(raw)
+                    translated_by_key[key] = canonical_name
+
+        clusters_by_key: dict[_EntityGroupKey, Cluster] = {}
+        for key, group in groups.items():
+            ent = existing.get(key)
+            primary_lang = primary_languages_grp.get(key.theme_id, "en")
+            tgt_lang = _normalize_lang_code(primary_lang) or "en"
+            need_canonical = ent is None or not (ent.display_text or "").strip()
+            canonical_name = translated_by_key.get(key) if need_canonical else None
+            if need_canonical and not canonical_name:
+                canonical_name = _capitalize_first_letter_only(group.normalized_name or "")
+
+            if ent is None:
+                ent = Cluster(
+                    theme_id=group.theme_id,
+                    normalized_text=group.normalized_name,
+                    display_text=canonical_name or group.normalized_name,
+                    type="phenomenon",
+                    global_df=len(group.quantum_ids),
+                    global_score=0.0,
+                )
+                session.add(ent)
+                clusters_by_key[key] = ent
+            else:
+                ent.global_df = (ent.global_df or 0) + len(group.quantum_ids)
+                if need_canonical and canonical_name:
+                    ent.display_text = canonical_name
+                clusters_by_key[key] = ent
+
+        logger.info("entities_extraction: _apply_phenomenon_results: clusters created/updated, flush")
+        await session.flush()
+
+        relation_rows = []
+        for key, group in groups.items():
+            ent = clusters_by_key.get(key)
+            if ent is None:
+                continue
+            for qid in group.quantum_ids:
+                relation_rows.append(
+                    {
+                        "theme_id": ent.theme_id,
+                        "subject_type": "cluster",
+                        "subject_id": ent.id,
+                        "object_type": "quantum",
+                        "object_id": qid,
+                        "relation_type": "mentions",
+                        "direction": "forward",
+                        "status": "active",
+                        "is_user_created": False,
+                    }
+                )
+        if relation_rows:
+            await session.execute(
+                insert(Relation)
+                .values(relation_rows)
+                .on_conflict_do_nothing(
+                    index_elements=[
+                        "theme_id",
+                        "subject_type",
+                        "subject_id",
+                        "relation_type",
+                        "object_type",
+                        "object_id",
+                    ],
+                    index_where=text("deleted_at IS NULL AND status = 'active'"),
+                )
+            )
+            await session.flush()
+        logger.info("entities_extraction: _apply_phenomenon_results: relation_rows inserted=%s", len(relation_rows))
+
+        relation_id_by_entity_quantum: dict[tuple[Any, Any], Any] = {}
+        if clusters_by_key and relation_rows:
+            cluster_ids = {c.id for c in clusters_by_key.values()}
+            quantum_ids = {r["object_id"] for r in relation_rows}
+            theme_ids_rel = {r["theme_id"] for r in relation_rows}
+            stmt_rel = select(Relation).where(
+                Relation.theme_id.in_(list(theme_ids_rel)),
+                Relation.subject_type == "cluster",
+                Relation.subject_id.in_(list(cluster_ids)),
+                Relation.relation_type == "mentions",
+                Relation.object_type == "quantum",
+                Relation.object_id.in_(list(quantum_ids)),
+                Relation.deleted_at.is_(None),
+                Relation.status == "active",
+            )
+            res_rel = await session.execute(stmt_rel)
+            for r in res_rel.scalars().all():
+                relation_id_by_entity_quantum[(r.subject_id, r.object_id)] = r.id
+        logger.info(
+            "entities_extraction: _apply_phenomenon_results: relation_id_by_entity_quantum loaded, count=%s",
+            len(relation_id_by_entity_quantum),
+        )
+
+        claim_rows = []
+        seen_per_relation: dict[Any, set[tuple[str, str]]] = {}
+        for key, group in groups.items():
+            ent = clusters_by_key.get(key)
+            if ent is None:
+                continue
+            by_q: dict[Any, list[tuple[str, str]]] = {}
+            for occ in group.occurrences:
+                by_q.setdefault(occ.quantum_id, []).append(
+                    (occ.modifier, occ.condition_text)
+                )
+            for qid, mod_cond_list in by_q.items():
+                rel_id = relation_id_by_entity_quantum.get((ent.id, qid))
+                if rel_id is None:
+                    continue
+                seen = seen_per_relation.setdefault(rel_id, set())
+                for mod, ctext in mod_cond_list:
+                    if (mod, ctext) in seen:
+                        continue
+                    seen.add((mod, ctext))
+                    claim_rows.append(
+                        {
+                            "relation_id": rel_id,
+                            "property_type": RELATION_CLAIM_PROPERTY_PHENOMENON,
+                            "properties_json": {"modifier": mod, "condition_text": ctext},
+                        }
+                    )
+        logger.info("entities_extraction: _apply_phenomenon_results: claim_rows=%s, inserting", len(claim_rows))
+        if claim_rows:
+            await session.execute(insert(RelationClaim).values(claim_rows))
+        logger.info("entities_extraction: _apply_phenomenon_results: claim_rows inserted")
+
+        logger.info(
+            "entities_extraction: phenomenon groups=%s, claims=%s",
+            len(groups),
+            len(claim_rows),
+        )
 
     @staticmethod
     def _build_text_for_quantum(q: Quantum) -> str:

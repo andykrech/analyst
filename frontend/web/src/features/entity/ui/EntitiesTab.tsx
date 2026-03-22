@@ -7,6 +7,7 @@ import './EntitiesTab.css'
 const GROUP_ORDER: { type: string; title: string }[] = [
   { type: 'tech', title: 'Технологии' },
   { type: 'person', title: 'Персоны' },
+  { type: 'phenomenon', title: 'Явления' },
   { type: '__other__', title: 'Другое' },
 ]
 
@@ -22,7 +23,10 @@ function sortEntities(items: EntityOutDto[]): EntityOutDto[] {
 function groupByType(items: EntityOutDto[]): Map<string, EntityOutDto[]> {
   const map = new Map<string, EntityOutDto[]>()
   for (const e of items) {
-    const key = e.entity_type === 'tech' || e.entity_type === 'person' ? e.entity_type : '__other__'
+    const key =
+      e.entity_type === 'tech' || e.entity_type === 'person' || e.entity_type === 'phenomenon'
+        ? e.entity_type
+        : '__other__'
     if (!map.has(key)) map.set(key, [])
     map.get(key)!.push(e)
   }

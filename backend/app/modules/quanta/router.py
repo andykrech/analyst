@@ -6,14 +6,24 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.db.session import get_db
 from app.modules.auth.router import get_current_user
 from app.modules.quanta.crud import get_quantum, list_quanta
 from app.modules.quanta.models import Quantum
-from app.modules.quanta.schemas import QuantumListOut, QuantumOut
+from app.modules.quanta.schemas import (
+    QuantumEntitiesOut,
+    QuantumEntityOut,
+    QuantumListOut,
+    QuantumOut,
+    QuantumPhenomenonClaimOut,
+    QuantumPhenomenonOut,
+)
 from app.modules.theme.service import get_theme_with_queries
 from app.modules.user.model import User
+from app.modules.entity.model import Cluster
+from app.modules.relation.model import Relation, RelationClaim
 
 router = APIRouter(prefix="/api/v1", tags=["quanta"])
 
@@ -134,4 +144,121 @@ async def get_quantum_endpoint(
 
     await _ensure_theme_access(db, theme_id=q.theme_id, user_id=current_user.id)
     return _quantum_row_to_out(q)
+
+
+PHENOMENON_PROPERTY_TYPE = "phenomenon_modifier_condition"
+
+
+@router.get(
+    "/quanta/{quantum_id}/entities",
+    response_model=QuantumEntitiesOut,
+)
+async def get_quantum_entities_endpoint(
+    quantum_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> QuantumEntitiesOut:
+    """Сущности (tech, person, phenomenon) для одного кванта, с модификаторами и условиями для явлений."""
+    try:
+        qid = uuid.UUID(quantum_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверный формат quantum_id (ожидается UUID)",
+        )
+
+    q = await get_quantum(db, quantum_id=qid)
+    if not q:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Квант не найден",
+        )
+
+    await _ensure_theme_access(db, theme_id=q.theme_id, user_id=current_user.id)
+
+    # Загрузить связи cluster–quantum:
+    # - technologies & phenomena: relation_type='mentions'
+    # - persons: relation_type='author'
+    rel_rows = (
+        await db.execute(
+            select(Relation, Cluster)
+            .join(Cluster, Cluster.id == Relation.subject_id)
+            .where(
+                Relation.object_type == "quantum",
+                Relation.object_id == qid,
+                Relation.subject_type == "cluster",
+                Relation.relation_type.in_(["mentions", "author"]),
+                Relation.deleted_at.is_(None),
+                Relation.status == "active",
+            )
+        )
+    ).all()
+
+    relations_by_id: dict[uuid.UUID, Relation] = {}
+    tech_entities: list[QuantumEntityOut] = []
+    person_entities: list[QuantumEntityOut] = []
+    phenomenon_entities_tmp: list[tuple[uuid.UUID, QuantumPhenomenonOut]] = []
+
+    for rel, cluster in rel_rows:
+        rel_id = rel.id
+        relations_by_id[rel_id] = rel
+
+        base = QuantumEntityOut(
+            id=str(cluster.id),
+            entity_type=cluster.type,
+            normalized_name=cluster.normalized_text,
+            canonical_name=cluster.display_text,
+        )
+
+        if cluster.type == "tech" and rel.relation_type == "mentions":
+            tech_entities.append(base)
+        elif cluster.type == "person" and rel.relation_type == "author":
+            person_entities.append(base)
+        elif cluster.type == "phenomenon" and rel.relation_type == "mentions":
+            phenomenon_entities_tmp.append(
+                (
+                    rel_id,
+                    QuantumPhenomenonOut(
+                        id=base.id,
+                        entity_type=base.entity_type,
+                        normalized_name=base.normalized_name,
+                        canonical_name=base.canonical_name,
+                        claims=[],
+                    ),
+                )
+            )
+
+    # Загрузить claims только для связей явлений
+    phenomenon_rel_ids = [rel_id for rel_id, _ in phenomenon_entities_tmp]
+    claims_by_relation: dict[uuid.UUID, list[QuantumPhenomenonClaimOut]] = {}
+    if phenomenon_rel_ids:
+        claim_rows = (
+            await db.execute(
+                select(RelationClaim).where(
+                    RelationClaim.relation_id.in_(phenomenon_rel_ids),
+                    RelationClaim.property_type == PHENOMENON_PROPERTY_TYPE,
+                )
+            )
+        ).scalars().all()
+
+        for c in claim_rows:
+            props = c.properties_json or {}
+            mod = str(props.get("modifier") or "").strip()
+            cond = str(props.get("condition_text") or "").strip()
+            claims_by_relation.setdefault(c.relation_id, []).append(
+                QuantumPhenomenonClaimOut(modifier=mod, condition_text=cond)
+            )
+
+    phenomena: list[QuantumPhenomenonOut] = []
+    for rel_id, phen in phenomenon_entities_tmp:
+        phen.claims = claims_by_relation.get(rel_id, []) or [
+            QuantumPhenomenonClaimOut(modifier="", condition_text="")
+        ]
+        phenomena.append(phen)
+
+    return QuantumEntitiesOut(
+        tech=tech_entities,
+        persons=person_entities,
+        phenomena=phenomena,
+    )
 

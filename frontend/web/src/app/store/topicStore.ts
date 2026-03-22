@@ -24,6 +24,9 @@ import {
   extractThemeEntities,
 } from '@/features/entity'
 import type { EntityOutDto } from '@/features/entity'
+import { extractThemeEvents, listThemeEvents, getEventDetail } from '@/features/event'
+import { getLatestLandscape, buildLandscape as buildLandscapeApi } from '@/features/landscape'
+import { ApiError } from '@/shared/api/apiClient'
 import {
   listThemeSources,
   createThemeSource,
@@ -53,6 +56,12 @@ export interface TopicTheme {
   keywords: Term[]
   requiredWords: Term[]
   excludedWords: Term[]
+}
+
+interface EventsExtractionState {
+  isLoading: boolean
+  error: string | null
+  lastResult: { processed_quanta: number; created_events: number } | null
 }
 
 function termFromDto(dto: TermDTO, hasAdditionalLangs: boolean): Term {
@@ -146,6 +155,30 @@ export interface TopicEntitiesData {
   error: string | null
 }
 
+export interface TopicEventsData {
+  items: EventOutDto[]
+  isLoading: boolean
+  error: string | null
+  extract: EventsExtractionState
+  detail: {
+    eventId: string | null
+    data: EventDetailOutDto | null
+    isLoading: boolean
+    error: string | null
+  }
+}
+
+export interface TopicLandscapeData {
+  text: string | null
+  id: string | null
+  isLoading: boolean
+  error: string | null
+  build: {
+    isLoading: boolean
+    error: string | null
+  }
+}
+
 export interface TopicData {
   theme: TopicTheme
   search: SearchData
@@ -153,11 +186,12 @@ export interface TopicData {
   siteSources: TopicSourcesData
   quanta: TopicQuantaData
   entities: TopicEntitiesData
-  events: Record<string, unknown>
+  events: TopicEventsData
+  landscape: TopicLandscapeData
 }
 
 export interface TopicUi {
-  activeTab: 'theme' | 'sources' | 'quanta' | 'entities'
+  activeTab: 'theme' | 'sources' | 'quanta' | 'entities' | 'events' | 'landscape'
 }
 
 function getInitialQuanta(): TopicQuantaData {
@@ -175,6 +209,35 @@ function getInitialEntities(): TopicEntitiesData {
     total: 0,
     isLoading: false,
     error: null,
+  }
+}
+
+function getInitialEvents(): TopicEventsData {
+  return {
+    items: [],
+    isLoading: false,
+    error: null,
+    extract: {
+      isLoading: false,
+      error: null,
+      lastResult: null,
+    },
+    detail: {
+      eventId: null,
+      data: null,
+      isLoading: false,
+      error: null,
+    },
+  }
+}
+
+function getInitialLandscape(): TopicLandscapeData {
+  return {
+    text: null,
+    id: null,
+    isLoading: false,
+    error: null,
+    build: { isLoading: false, error: null },
   }
 }
 
@@ -275,7 +338,9 @@ interface TopicStore {
   /** Список тем для навигации (заполняется провайдером TopicsNavProvider). */
   themesForNav: ThemeListItemDto[]
 
-  setActiveTab: (tab: 'theme' | 'sources' | 'quanta' | 'entities') => void
+  setActiveTab: (
+    tab: 'theme' | 'sources' | 'quanta' | 'entities' | 'events' | 'landscape'
+  ) => void
   setThemesForNav: (themes: ThemeListItemDto[]) => void
   applyThemeSuggestions: (payload: ThemePrepareResponse) => void
   suggestThemeFromDescription: () => Promise<void>
@@ -378,6 +443,16 @@ interface TopicStore {
   loadEntities: () => Promise<void>
   extractEntities: () => Promise<void>
   clearEntitiesError: () => void
+
+  // Events (извлечение событий по теме)
+  extractEvents: () => Promise<void>
+  loadEvents: () => Promise<void>
+  openEventDetail: (eventId: string) => Promise<void>
+  closeEventDetail: () => void
+
+  // Ландшафт темы
+  loadLandscape: () => Promise<void>
+  buildLandscape: () => Promise<void>
 }
 
 export const useTopicStore = create<TopicStore>((set) => ({
@@ -390,7 +465,8 @@ export const useTopicStore = create<TopicStore>((set) => ({
     siteSources: getInitialSiteSources(),
     quanta: getInitialQuanta(),
     entities: getInitialEntities(),
-    events: {},
+    events: getInitialEvents(),
+    landscape: getInitialLandscape(),
   },
   ui: {
     activeTab: 'theme',
@@ -418,7 +494,8 @@ export const useTopicStore = create<TopicStore>((set) => ({
         siteSources: getInitialSiteSources(),
         quanta: getInitialQuanta(),
         entities: getInitialEntities(),
-        events: {},
+        events: getInitialEvents(),
+        landscape: getInitialLandscape(),
       },
       ui: { activeTab: 'theme' },
       aiSuggest: { isLoading: false, error: null },
@@ -522,7 +599,8 @@ export const useTopicStore = create<TopicStore>((set) => ({
             sources: payload.sources ?? s.data.sources,
             siteSources: s.data.siteSources,
             entities: payload.entities ?? s.data.entities,
-            events: payload.events ?? s.data.events,
+            events: getInitialEvents(),
+            landscape: getInitialLandscape(),
           },
         }
       }
@@ -573,7 +651,8 @@ export const useTopicStore = create<TopicStore>((set) => ({
           sources: payload.sources ?? s.data.sources,
           siteSources: s.data.siteSources,
           entities: payload.entities ?? s.data.entities,
-          events: payload.events ?? s.data.events,
+          events: getInitialEvents(),
+          landscape: getInitialLandscape(),
         },
       }
     })
@@ -2275,6 +2354,247 @@ export const useTopicStore = create<TopicStore>((set) => ({
         data: {
           ...s.data,
           entities: { ...s.data.entities, isLoading: false, error: msg },
+        },
+      }))
+    }
+  },
+
+  extractEvents: async () => {
+    const state = useTopicStore.getState()
+    const themeId = state.activeTopicId
+    if (!themeId) return
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        events: { ...s.data.events, isLoading: true, error: null },
+      },
+    }))
+    try {
+      const res = await extractThemeEvents(themeId)
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          events: {
+            ...s.data.events,
+            isLoading: false,
+            error: null,
+            lastResult: res,
+          },
+        },
+      }))
+    } catch (e) {
+      const isAbort = e instanceof Error && e.name === 'AbortError'
+      const msg = isAbort
+        ? 'Извлечение заняло слишком много времени. Часть данных могла сохраниться — повторите попытку позже.'
+        : e instanceof Error
+          ? e.message
+          : 'Ошибка извлечения событий'
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          events: { ...s.data.events, isLoading: false, error: msg },
+        },
+      }))
+    }
+  },
+
+  loadEvents: async () => {
+    const state = useTopicStore.getState()
+    const themeId = state.activeTopicId
+    if (!themeId) return
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        events: { ...s.data.events, isLoading: true, error: null },
+      },
+    }))
+    try {
+      const items = await listThemeEvents(themeId)
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          events: {
+            ...s.data.events,
+            items,
+            isLoading: false,
+            error: null,
+          },
+        },
+      }))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Ошибка загрузки событий'
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          events: { ...s.data.events, isLoading: false, error: msg },
+        },
+      }))
+    }
+  },
+
+  openEventDetail: async (eventId: string) => {
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        events: {
+          ...s.data.events,
+          detail: { ...s.data.events.detail, eventId, isLoading: true, error: null },
+        },
+      },
+    }))
+    try {
+      const data = await getEventDetail(eventId)
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          events: {
+            ...s.data.events,
+            detail: { eventId, data, isLoading: false, error: null },
+          },
+        },
+      }))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Ошибка загрузки деталей события'
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          events: {
+            ...s.data.events,
+            detail: { eventId, data: null, isLoading: false, error: msg },
+          },
+        },
+      }))
+    }
+  },
+
+  closeEventDetail: () =>
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        events: {
+          ...s.data.events,
+          detail: { eventId: null, data: null, isLoading: false, error: null },
+        },
+      },
+    })),
+
+  loadLandscape: async () => {
+    const themeId = useTopicStore.getState().activeTopicId
+    if (!themeId) return
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        landscape: {
+          ...s.data.landscape,
+          isLoading: true,
+          error: null,
+        },
+      },
+    }))
+    try {
+      const res = await getLatestLandscape(themeId)
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          landscape: {
+            ...s.data.landscape,
+            text: res.text,
+            id: res.id,
+            isLoading: false,
+            error: null,
+          },
+        },
+      }))
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        set((s) => ({
+          ...s,
+          data: {
+            ...s.data,
+            landscape: {
+              ...s.data.landscape,
+              text: null,
+              id: null,
+              isLoading: false,
+              error: null,
+            },
+          },
+        }))
+        return
+      }
+      const msg =
+        e instanceof Error ? e.message : 'Ошибка загрузки ландшафта'
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          landscape: {
+            ...s.data.landscape,
+            isLoading: false,
+            error: msg,
+          },
+        },
+      }))
+    }
+  },
+
+  buildLandscape: async () => {
+    const themeId = useTopicStore.getState().activeTopicId
+    if (!themeId) return
+    set((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        landscape: {
+          ...s.data.landscape,
+          build: { isLoading: true, error: null },
+        },
+      },
+    }))
+    try {
+      const res = await buildLandscapeApi(themeId)
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          landscape: {
+            ...s.data.landscape,
+            text: res.text,
+            id: res.id,
+            build: { isLoading: false, error: null },
+            error: null,
+          },
+        },
+      }))
+    } catch (e) {
+      const isAbort = e instanceof Error && e.name === 'AbortError'
+      const msg = isAbort
+        ? 'Построение заняло слишком много времени. Повторите попытку позже.'
+        : e instanceof ApiError
+          ? e.message
+          : e instanceof Error
+            ? e.message
+            : 'Ошибка построения ландшафта'
+      set((s) => ({
+        ...s,
+        data: {
+          ...s.data,
+          landscape: {
+            ...s.data.landscape,
+            build: { isLoading: false, error: msg },
+          },
         },
       }))
     }

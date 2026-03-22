@@ -1,0 +1,24 @@
+.events-tab {
+  padding: 16px;
+}
+
+.events-tab__error {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #ffe5e5;
+  color: #a40000;
+  border-radius: 4px;
+}
+
+.events-tab__loading,
+.events-tab__empty {
+  padding: 16px;
+  color: #666;
+}
+
+.events-tab__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+

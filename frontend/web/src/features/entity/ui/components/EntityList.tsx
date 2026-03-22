@@ -17,6 +17,7 @@ function formatDate(s: string | null): string {
 const ENTITY_TYPE_LABELS: Record<string, string> = {
   tech: 'Технология',
   person: 'Персона',
+  phenomenon: 'Явление',
   org: 'Организация',
   product: 'Продукт',
   country: 'Страна',

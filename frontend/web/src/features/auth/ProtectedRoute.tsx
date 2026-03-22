@@ -9,7 +9,14 @@ import { ApiError } from '@/shared/api/apiClient'
 import './ProtectedRoute.css'
 
 const DEFAULT_TOPIC_URL = '/topic/theme'
-const TOPIC_URLS = ['/topic/theme', '/topic/sources', '/topic/quanta', '/topic/entities'] as const
+const TOPIC_URLS = [
+  '/topic/theme',
+  '/topic/sources',
+  '/topic/quanta',
+  '/topic/entities',
+  '/topic/events',
+  '/topic/landscape',
+] as const
 
 function isValidTopicUrl(url: string): url is (typeof TOPIC_URLS)[number] {
   return TOPIC_URLS.includes(url as (typeof TOPIC_URLS)[number])
@@ -17,10 +24,12 @@ function isValidTopicUrl(url: string): url is (typeof TOPIC_URLS)[number] {
 
 function topicUrlToTab(
   url: string
-): 'theme' | 'sources' | 'quanta' | 'entities' {
+): 'theme' | 'sources' | 'quanta' | 'entities' | 'events' | 'landscape' {
   if (url === '/topic/sources') return 'sources'
   if (url === '/topic/quanta') return 'quanta'
   if (url === '/topic/entities') return 'entities'
+  if (url === '/topic/events') return 'events'
+  if (url === '/topic/landscape') return 'landscape'
   return 'theme'
 }
 
@@ -96,6 +105,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
             })
             useTopicStore.getState().loadThemeFromApi(themeResponse)
             useTopicStore.getState().loadEntities()
+            void useTopicStore.getState().loadLandscape()
             const url =
               savedUrl && isValidTopicUrl(savedUrl) ? savedUrl : DEFAULT_TOPIC_URL
             useTopicStore.getState().setActiveTab(topicUrlToTab(url))
