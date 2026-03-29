@@ -1,0 +1,103 @@
+.billing-usage-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 64px 24px;
+  z-index: 50;
+}
+
+.billing-usage-modal {
+  width: min(1100px, 100%);
+  max-height: calc(100vh - 128px);
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.billing-usage-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #eef1f4;
+}
+
+.billing-usage-modal__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.billing-usage-modal__close {
+  border: 1px solid #ddd;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 4px 10px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.billing-usage-modal__close:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+.billing-usage-modal__body {
+  padding: 14px 16px 16px;
+  overflow: auto;
+}
+
+.billing-usage-modal__hint {
+  font-size: 13px;
+  color: #666;
+  margin: 0 0 10px;
+}
+
+.billing-usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.billing-usage-table th,
+.billing-usage-table td {
+  border-bottom: 1px solid #eef1f4;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.billing-usage-table th {
+  position: sticky;
+  top: 0;
+  background: #fafbfc;
+  z-index: 1;
+  font-weight: 600;
+}
+
+.billing-usage-table td.billing-usage-table__wide {
+  white-space: normal;
+}
+
+.billing-usage-modal__state {
+  padding: 12px 0;
+  color: #444;
+}
+
+.billing-usage-modal__error {
+  padding: 12px 14px;
+  border: 1px solid #f1c4c4;
+  background: #fff5f5;
+  color: #8a1f1f;
+  border-radius: 8px;
+}
+

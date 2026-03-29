@@ -2,17 +2,27 @@
 Верхний слой эмбеддингов.
 Выбирает провайдера по имени из конфига и делегирует ему построение вектора.
 Возвращает JSONB-совместимый dict (vector + cost).
+Опционально пишет billing_usage_events (service_type=embedding, unit_code=total_tokens).
 """
 
 from __future__ import annotations
 
 import logging
+import uuid
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.core.config import Settings
 from app.integrations.embedding.ports import EmbeddingCost, EmbeddingProviderPort, EmbeddingResult
 from app.integrations.embedding.providers.openai import OpenAIEmbeddingProvider
+from app.modules.billing.constants import (
+    BillingQuantityUnitCode,
+    BillingServiceType,
+    embedding_tariff_service_impl,
+)
+
+if TYPE_CHECKING:
+    from app.modules.billing.service import BillingService
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +33,9 @@ class EmbeddingService:
     Вызывает провайдера с переданными моделью, размерностью, стоимостью за токен и текстом.
     """
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, billing_service: "BillingService | None" = None) -> None:
         self._settings = settings
+        self._billing_service = billing_service
         self._registry: dict[str, EmbeddingProviderPort] = {
             "openai": OpenAIEmbeddingProvider(
                 api_key=settings.OPENAI_API_KEY.get_secret_value(),
@@ -47,6 +58,10 @@ class EmbeddingService:
         model: str | None = None,
         dimensions: int | None = None,
         cost_per_token: Decimal | None = None,
+        billing_session: Any | None = None,
+        billing_theme_id: uuid.UUID | None = None,
+        billing_task_type: str | None = None,
+        billing_extra: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Построить эмбеддинг для текста и вернуть JSONB-совместимый результат.
@@ -57,6 +72,10 @@ class EmbeddingService:
             model: модель (если None — из конфига EMBEDDING_MODEL).
             dimensions: размерность вектора (если None — из конфига EMBEDDING_DIMENSIONS).
             cost_per_token: стоимость за 1 токен (если None — из конфига EMBEDDING_COST_PER_TOKEN).
+            billing_session: AsyncSession — при наличии с billing_theme_id и billing_service пишется биллинг.
+            billing_theme_id: тема для события расхода.
+            billing_task_type: тип задачи (например theme_relevance_embedding, search_quantum_embedding).
+            billing_extra: дополнительные поля в JSON события.
 
         Returns:
             Dict для JSONB: vector (list[float]), cost (dict с total_tokens, total_cost),
@@ -83,7 +102,53 @@ class EmbeddingService:
             cost_per_token=cost_per,
         )
 
+        await self._record_embedding_billing(
+            provider_name=provider.name,
+            model_val=model_val,
+            total_tokens=result.cost.total_tokens,
+            billing_session=billing_session,
+            billing_theme_id=billing_theme_id,
+            billing_task_type=billing_task_type,
+            billing_extra=billing_extra,
+        )
+
         return _result_to_jsonb(result, provider.name, model_val, dims_val)
+
+    async def _record_embedding_billing(
+        self,
+        *,
+        provider_name: str,
+        model_val: str,
+        total_tokens: int,
+        billing_session: Any | None,
+        billing_theme_id: uuid.UUID | None,
+        billing_task_type: str | None,
+        billing_extra: dict[str, Any] | None,
+    ) -> None:
+        if (
+            self._billing_service is None
+            or billing_session is None
+            or billing_theme_id is None
+            or billing_task_type is None
+            or total_tokens <= 0
+        ):
+            return
+        service_impl = embedding_tariff_service_impl(provider_name, model_val)
+        extra: dict[str, Any] = {
+            "provider": provider_name,
+            "model": model_val,
+            **(billing_extra or {}),
+        }
+        await self._billing_service.record_usage(
+            billing_session,
+            theme_id=billing_theme_id,
+            task_type=billing_task_type,
+            service_type=BillingServiceType.EMBEDDING.value,
+            service_impl=service_impl,
+            quantity=Decimal(total_tokens),
+            quantity_unit_code=BillingQuantityUnitCode.TOTAL_TOKENS.value,
+            extra=extra,
+        )
 
 
 def _result_to_jsonb(

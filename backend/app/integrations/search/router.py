@@ -25,6 +25,7 @@ from app.integrations.search.schemas import (
 )
 from app.integrations.search.service import SearchService
 from app.integrations.translation import TranslationService
+from app.modules.quanta.crud import record_rejected_quanta_candidates
 from app.modules.quanta.service import (
     get_translate_batch_count,
     save_quanta_from_search,
@@ -129,6 +130,8 @@ async def collect_links_by_theme(
                     model_names=["deepseek"],
                     llm_service=llm_service,
                     prompt_service=prompt_service,
+                    billing_session=db,
+                    billing_theme_id=theme_id_uuid,
                 )
                 total_threshold = max(
                     0.0,
@@ -139,6 +142,16 @@ async def collect_links_by_theme(
                     for i in range(len(result.items))
                     if (relevance_list[i].get("total_score") or -1.0) >= total_threshold
                 ]
+                kept_set = set(kept_indices)
+                llm_rejected = [
+                    result.items[i] for i in range(len(result.items)) if i not in kept_set
+                ]
+                if llm_rejected and theme_id_uuid:
+                    await record_rejected_quanta_candidates(
+                        db,
+                        theme_id=theme_id_uuid,
+                        items=llm_rejected,
+                    )
                 items_to_save = [result.items[i] for i in kept_indices]
                 relevance_by_index = {new_i: relevance_list[kept_indices[new_i]] for new_i in range(len(kept_indices))}
                 result.items = items_to_save
@@ -154,6 +167,9 @@ async def collect_links_by_theme(
                 translations_by_index, cost = await translation_service.translate_quanta_create_items(
                     items_to_save,
                     target_lang=primary_language,
+                    billing_session=db,
+                    billing_theme_id=theme_id_uuid,
+                    titles_only=True,
                 )
                 logger.info(
                     "collect-by-theme: перевод через %s, входящих символов=%s",
@@ -177,6 +193,9 @@ async def collect_links_by_theme(
                         llm_service,
                         prompt_service,
                         limit=settings.QUANTA_TRANSLATION_LIMIT,
+                        billing_session=db,
+                        billing_theme_id=theme_id_uuid,
+                        titles_only=True,
                     ),
                     timeout=translate_timeout_s,
                 )

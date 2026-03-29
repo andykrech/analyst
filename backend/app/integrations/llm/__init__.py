@@ -11,6 +11,7 @@ from app.integrations.llm.types import (
     LLMResponse,
     Message,
     TokenUsage,
+    llm_cost_for_api,
 )
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "CostBreakdown",
     "LLMRequest",
     "LLMResponse",
+    "llm_cost_for_api",
 ]

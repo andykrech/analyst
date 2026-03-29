@@ -112,6 +112,8 @@ class LandscapeBuilder:
                 top_p=0.95,
             ),
             response_format="text",
+            billing_session=db,
+            billing_theme_id=theme_id,
         )
         body = (response.text or "").strip()
         try:

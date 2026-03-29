@@ -114,7 +114,7 @@ class SourcesRecommendLLMMeta(BaseModel):
     provider: str
     model: Optional[str] = None
     usage: dict
-    cost: dict
+    cost: dict = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
 
 

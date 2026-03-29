@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.integrations.llm import LLMService, get_llm_service
+from app.integrations.llm import LLMService, get_llm_service, llm_cost_for_api
 from app.integrations.prompts import PromptService, get_prompt_service
 from app.modules.auth.router import get_current_user
 from app.modules.theme.schemas import (
@@ -186,15 +186,14 @@ async def prepare_theme(
         provider=response.provider,
         model=response.model,
         usage=response.usage.model_dump(mode="json"),
-        cost=response.cost.model_dump(mode="json"),
+        cost=llm_cost_for_api(response),
         warnings=response.warnings or [],
     )
 
     logger.info(
-        "theme_init ok task=theme_init provider=%s usage_source=%s total_cost=%s",
+        "theme_init ok task=theme_init provider=%s usage_source=%s",
         response.provider,
         response.usage.source,
-        response.cost.total_cost,
     )
 
     return ThemePrepareResponse(result=result, llm=llm_meta)
@@ -266,7 +265,7 @@ async def prepare_theme_title(
         provider=response.provider,
         model=response.model,
         usage=response.usage.model_dump(mode="json"),
-        cost=response.cost.model_dump(mode="json"),
+        cost=llm_cost_for_api(response),
         warnings=response.warnings or [],
     )
     return ThemePrepareTitleResponse(title=title, llm=llm_meta)
@@ -281,21 +280,23 @@ async def prepare_theme_keywords(
     prompt_service: PromptService = Depends(get_prompt_service),
 ) -> ThemePrepareKeywordsResponse:
     """Предложить ключевые слова (и must_have, excludes) по описанию. description опционален — при отсутствии загружается из темы по theme_id."""
+    try:
+        tid = uuid.UUID(body.theme_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверный формат theme_id",
+        ) from None
+
+    theme, _ = await get_theme_with_queries(db, tid, current_user.id)
+    if not theme:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Тема не найдена или недоступна",
+        )
+
     user_input = body.description
     if user_input is None or not user_input.strip():
-        try:
-            tid = uuid.UUID(body.theme_id)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Неверный формат theme_id",
-            ) from None
-        theme, _ = await get_theme_with_queries(db, tid, current_user.id)
-        if not theme:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Тема не найдена или недоступна",
-            )
         user_input = (theme.description or "").strip()
         if not user_input:
             raise HTTPException(
@@ -312,6 +313,8 @@ async def prepare_theme_keywords(
             prompt_service=prompt_service,
             task="theme_init_keywords",
             generation={"temperature": 0.2, "max_tokens": 2000},
+            billing_session=db,
+            billing_theme_id=tid,
         )
     except Exception as e:  # noqa: BLE001
         logger.exception("theme_init_keywords LLM call failed: %s", e)
@@ -360,7 +363,7 @@ async def prepare_theme_keywords(
         provider=response.provider,
         model=response.model,
         usage=response.usage.model_dump(mode="json"),
-        cost=response.cost.model_dump(mode="json"),
+        cost=llm_cost_for_api(response),
         warnings=response.warnings or [],
     )
     return ThemePrepareKeywordsResponse(result=result, llm=llm_meta)
@@ -524,15 +527,14 @@ async def translate_terms(
         provider=response.provider,
         model=response.model,
         usage=response.usage.model_dump(mode="json"),
-        cost=response.cost.model_dump(mode="json"),
+        cost=llm_cost_for_api(response),
         warnings=response.warnings or [],
     )
 
     logger.info(
-        "terms_translate ok provider=%s usage_source=%s total_cost=%s",
+        "terms_translate ok provider=%s usage_source=%s",
         response.provider,
         response.usage.source,
-        response.cost.total_cost,
     )
 
     return TermsTranslateResponse(translations=ordered_translations, llm=llm_meta)

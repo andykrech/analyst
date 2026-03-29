@@ -14,6 +14,7 @@ from sqlalchemy.sql import literal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
+from app.modules.billing.service import BillingService
 from app.integrations.embedding import EmbeddingService
 from app.integrations.embedding.model import Embedding
 from app.integrations.embedding.theme_relevance import ensure_theme_relevance_embedding
@@ -26,6 +27,7 @@ from app.integrations.search.schemas import (
     SearchQuery,
     TimeSlice,
 )
+from app.modules.quanta.models import Quantum, RejectedQuantaCandidate
 from app.modules.theme.model import Theme
 
 if TYPE_CHECKING:
@@ -69,9 +71,10 @@ class SearchService:
     Перед поиском по теме создаётся/обновляется вектор релевантности темы (embedding_kind=relevance).
     """
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, billing_service: BillingService | None = None) -> None:
         self._settings = settings
-        self._embedding_service = EmbeddingService(settings)
+        self._billing_service = billing_service
+        self._embedding_service = EmbeddingService(settings, billing_service=self._billing_service)
         self._registry: dict[str, "RetrieverPort"] = {
             "openalex": PublicationRetriever(),
         }
@@ -139,6 +142,23 @@ class SearchService:
         else:
             theme_relevance_vector = None
 
+        existing_dedup_rows = await session.execute(
+            select(Quantum.dedup_key).where(Quantum.theme_id == theme_id)
+        )
+        existing_theme_dedup_keys = frozenset(
+            row[0] for row in existing_dedup_rows.all() if row[0]
+        )
+        rejected_rows = await session.execute(
+            select(RejectedQuantaCandidate.entity_kind, RejectedQuantaCandidate.key).where(
+                RejectedQuantaCandidate.theme_id == theme_id
+            )
+        )
+        rejected_quanta_candidate_keys = frozenset(
+            (row[0].value, row[1])
+            for row in rejected_rows.all()
+            if row[1]
+        )
+
         ctx = RetrieverContext(
             settings=self._settings,
             logger=logger,
@@ -149,6 +169,11 @@ class SearchService:
             language=language,
             time_slice=time_slice,
             theme_relevance_vector=theme_relevance_vector,
+            billing_session=session,
+            billing_theme_id=theme_id,
+            billing_service=self._billing_service,
+            existing_theme_dedup_keys=existing_theme_dedup_keys,
+            rejected_quanta_candidate_keys=rejected_quanta_candidate_keys,
         )
         plan = await self._planner.build_plan_for_theme(
             session, theme_id, mode=mode, languages=languages_for_plan

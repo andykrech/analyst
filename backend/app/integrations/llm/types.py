@@ -59,8 +59,15 @@ class LLMResponse(BaseModel):
     provider: str
     model: str | None = None
     usage: TokenUsage
-    cost: CostBreakdown
+    cost: CostBreakdown | None = None
     raw: str | None = None
     latency_ms: int | None = None
     finish_reason: str | None = None
     warnings: list[str] = Field(default_factory=list)
+
+
+def llm_cost_for_api(response: LLMResponse) -> dict:
+    """Сериализация cost для API; при отсутствии (биллинг в БД) — пустой dict."""
+    if response.cost is None:
+        return {}
+    return response.cost.model_dump(mode="json")

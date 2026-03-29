@@ -245,6 +245,8 @@ class AtomsClustersExtractor:
             PROMPT_EXTRACT,
             {"summary_text": summary},
             self._prompt,
+            billing_session=session,
+            billing_theme_id=theme_id,
         )
         raw = (response.text or "").strip()
         if dbg:
@@ -296,6 +298,7 @@ class AtomsClustersExtractor:
             for phrase in cluster_strings:
                 tr = await self._translate(
                     session,
+                    theme_id=theme_id,
                     term=phrase,
                     source_language=src,
                     target_language="en",
@@ -406,6 +409,8 @@ class AtomsClustersExtractor:
                 PROMPT_ABBREVIATION_EXPAND,
                 abbr_vars,
                 self._prompt,
+                billing_session=session,
+                billing_theme_id=theme_id,
             )
             if dbg:
                 dbg.info("ENTITY RESPONSE [%s]:\n%s", PROMPT_ABBREVIATION_EXPAND, (response_abbr.text or "").strip())
@@ -511,6 +516,8 @@ class AtomsClustersExtractor:
                 PROMPT_CLUSTER_TYPE,
                 type_vars,
                 self._prompt,
+                billing_session=session,
+                billing_theme_id=theme_id,
             )
             if dbg:
                 dbg.info("ENTITY RESPONSE [%s]:\n%s", PROMPT_CLUSTER_TYPE, (type_response.text or "").strip())
@@ -549,6 +556,8 @@ class AtomsClustersExtractor:
                 PROMPT_ATOM_SPECIFICITY,
                 spec_vars,
                 self._prompt,
+                billing_session=session,
+                billing_theme_id=theme_id,
             )
             if dbg:
                 dbg.info("ENTITY RESPONSE [%s]:\n%s", PROMPT_ATOM_SPECIFICITY, (spec_response.text or "").strip())
@@ -663,6 +672,7 @@ class AtomsClustersExtractor:
         self,
         session: AsyncSession,
         *,
+        theme_id: Any,
         term: str,
         source_language: str,
         target_language: str,
@@ -680,7 +690,13 @@ class AtomsClustersExtractor:
             rendered = await self._prompt.render(PROMPT_NAME_TRANSLATE, vars_map)
             dbg.info("ENTITY PROMPT [%s] term=%r:\n%s", PROMPT_NAME_TRANSLATE, t[:60], rendered.text or "")
         try:
-            r = await self._llm.generate_from_prompt(PROMPT_NAME_TRANSLATE, vars_map, self._prompt)
+            r = await self._llm.generate_from_prompt(
+                PROMPT_NAME_TRANSLATE,
+                vars_map,
+                self._prompt,
+                billing_session=session,
+                billing_theme_id=theme_id,
+            )
             out = (r.text or "").strip()
             if dbg:
                 dbg.info("ENTITY RESPONSE [%s] term=%r -> %s", PROMPT_NAME_TRANSLATE, t[:60], out[:100] if out else "(empty)")
@@ -774,6 +790,7 @@ class AtomsClustersExtractor:
         elif cluster_translation_needed and primary_lang and primary_lang.lower() != "en":
             tr = await self._translate(
                 session,
+                theme_id=theme_id,
                 term=normalized_text,
                 source_language="en",
                 target_language=primary_lang,

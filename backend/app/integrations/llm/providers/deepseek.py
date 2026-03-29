@@ -1,16 +1,13 @@
 """
 Провайдер DeepSeek: вызов API chat/completions.
-Не считает стоимость и токены — это делает LLMService.
+Токены и биллинг обрабатывает LLMService после ответа.
 """
-import logging
 from typing import Any
 
 import httpx
 
 from app.core.config import ProviderConfig
 from app.integrations.llm.types import LLMRequest
-
-logger = logging.getLogger(__name__)
 
 RAW_MAX_LEN = 5000
 
@@ -79,10 +76,12 @@ class DeepSeekProvider:
         if len(raw_str) > RAW_MAX_LEN:
             raw_str = raw_str[:RAW_MAX_LEN] + "..."
 
+        model_name = data.get("model") or self._config.model
+
         return {
             "text": text,
             "raw": raw_str,
-            "model": data.get("model") or self._config.model,
+            "model": model_name,
             "usage": usage,
             "finish_reason": finish_reason,
         }

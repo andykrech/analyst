@@ -167,6 +167,8 @@ class EventExtractionService:
                     messages=[{"role": "system", "content": prompt_text}],  # type: ignore[arg-type]
                     task=PROMPT_NAME_EXTRACT_EVENTS,
                     response_format=rendered.response_format,
+                    billing_session=session,
+                    billing_theme_id=q.theme_id,
                 )
             except Exception as e:
                 logger.warning(

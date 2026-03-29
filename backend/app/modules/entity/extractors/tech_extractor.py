@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.integrations.llm import LLMService
 from app.integrations.prompts import PromptService
@@ -37,7 +39,13 @@ class TechEntitiesExtractor:
         self._llm_service = llm_service
         self._prompt_service = prompt_service
 
-    async def extract_for_text(self, text: str) -> TechExtractorResult:
+    async def extract_for_text(
+        self,
+        text: str,
+        *,
+        billing_session: AsyncSession | None = None,
+        billing_theme_id: uuid.UUID | None = None,
+    ) -> TechExtractorResult:
         """
         Извлечь tech-сущности из текста одного кванта.
 
@@ -51,6 +59,8 @@ class TechEntitiesExtractor:
             PROMPT_NAME_TECH_EXTRACTOR,
             {"text": cleaned_text},
             self._prompt_service,
+            billing_session=billing_session,
+            billing_theme_id=billing_theme_id,
         )
 
         raw_text = (response.text or "").strip()

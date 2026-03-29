@@ -9,7 +9,7 @@ import grpc
 import xml.etree.ElementTree as ET
 from charset_normalizer import from_bytes
 
-from app.integrations.search.ports import RetrieverContext, RetrieverPort
+from app.integrations.search.ports import RetrieverContext, RetrieverPort, RetrieverResult
 from app.integrations.search.schemas import LinkCandidate, QueryModel, QueryStep
 from app.integrations.search.utils import normalize_url
 from app.modules.quanta.schemas import QuantumCreate
@@ -147,7 +147,7 @@ class YandexRetriever:
     def name(self) -> str:
         return "yandex"
 
-    async def retrieve(self, step: QueryStep, ctx: RetrieverContext) -> list[QuantumCreate]:
+    async def retrieve(self, step: QueryStep, ctx: RetrieverContext) -> RetrieverResult:
         settings = ctx.settings
         api_key = settings.YANDEX_API_KEY
         folder_id = settings.YANDEX_FOLDER_ID
@@ -156,17 +156,20 @@ class YandexRetriever:
 
         if not api_key or api_key == "changeme" or not folder_id or folder_id == "changeme":
             candidates = self._stub_retrieve_candidates(step)
-            return _link_candidates_to_quanta(
-                candidates,
-                theme_id=theme_id,
-                run_id=run_id,
-                query_text=_compile_query_model_to_string(step.query_model) or " ",
+            return RetrieverResult(
+                items=_link_candidates_to_quanta(
+                    candidates,
+                    theme_id=theme_id,
+                    run_id=run_id,
+                    query_text=_compile_query_model_to_string(step.query_model) or " ",
+                ),
+                billing_lines=[],
             )
 
         # Компиляция структурной модели запроса в строку для Yandex
         query_text = _compile_query_model_to_string(step.query_model)
         if not query_text:
-            return []
+            return RetrieverResult(items=[], billing_lines=[])
 
         groups_on_page = min(step.max_results, 100)
         timeout_s = settings.YANDEX_SEARCH_TIMEOUT_SECONDS
@@ -279,11 +282,14 @@ class YandexRetriever:
             )
             rank += 1
 
-        return _link_candidates_to_quanta(
-            items,
-            theme_id=theme_id,
-            run_id=run_id,
-            query_text=query_text,
+        return RetrieverResult(
+            items=_link_candidates_to_quanta(
+                items,
+                theme_id=theme_id,
+                run_id=run_id,
+                query_text=query_text,
+            ),
+            billing_lines=[],
         )
 
     def _stub_retrieve_candidates(self, step: QueryStep) -> list[LinkCandidate]:

@@ -299,3 +299,57 @@ class Quantum(Base):
         comment="Обновлено в БД",
     )
 
+
+class RejectedQuantaCandidate(Base):
+    """
+    Кандидат в кванты, уже отклонённый как нерелевантный (эмбеддинг или ИИ).
+    Исключается из повторной обработки при следующих прогонах поиска по теме.
+    """
+
+    __tablename__ = "rejected_quanta_candidates"
+    __table_args__ = (
+        UniqueConstraint(
+            "theme_id",
+            "entity_kind",
+            "key",
+            name="uq_rejected_quanta_candidates_theme_id_entity_kind_key",
+        ),
+        Index(
+            "idx_rejected_quanta_candidates_theme_kind_key",
+            "theme_id",
+            "entity_kind",
+            "key",
+        ),
+        {"comment": "Отклонённые кандидаты в кванты (не пересматривать при повторном поиске)"},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+        comment="Идентификатор записи",
+    )
+    theme_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("themes.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Тема, в контексте которой квант отклонён",
+    )
+    entity_kind: Mapped[QuantumEntityKind] = mapped_column(
+        SAEnum(QuantumEntityKind, name="quantum_entity_kind"),
+        nullable=False,
+        comment="Класс кванта (тот же enum, что у theme_quanta.entity_kind)",
+    )
+    key: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Ключ дедупликации кванта (как dedup_key в theme_quanta)",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        comment="Когда кандидат занесён в список отклонённых",
+    )
+

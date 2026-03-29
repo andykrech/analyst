@@ -43,7 +43,7 @@ from app.modules.auth_token.model import AuthToken  # noqa: F401
 from app.modules.theme.model import Theme, ThemeSearchQuery  # noqa: F401
 from app.modules.site.models import Site, ThemeSite, UserSite  # noqa: F401
 from app.modules.source_link.model import SourceLink  # noqa: F401
-from app.modules.quanta.models import Quantum  # noqa: F401
+from app.modules.quanta.models import Quantum, RejectedQuantaCandidate  # noqa: F401
 from app.modules.search_run.model import SearchRun  # noqa: F401
 from app.modules.digest.model import Digest, DigestSourceLink  # noqa: F401
 from app.modules.entity.model import (  # noqa: F401
@@ -59,6 +59,13 @@ from app.modules.relation.model import Relation  # noqa: F401
 from app.modules.event.model import Event, EventParticipant, EventPlot, EventRole  # noqa: F401
 from app.modules.landscape.model import Landscape  # noqa: F401
 from app.integrations.embedding.model import Embedding  # noqa: F401
+from app.modules.billing.model import (  # noqa: F401
+    BillingDailyServicesTasks,
+    BillingDailySummary,
+    BillingExchangeRate,
+    BillingTariff,
+    BillingUsageEvent,
+)
 
 # add your model's MetaData object here
 # for 'autogenerate' support

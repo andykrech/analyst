@@ -23,4 +23,4 @@ def get_provider(
     if name == "deepseek":
         config = settings.llm_registry["deepseek"]
         return DeepSeekProvider(config, http_client)
-    raise ValueError(f"Unknown LLM provider: {provider_name}")
+    raise ValueError(f"Unknown LLM provider: {name}")

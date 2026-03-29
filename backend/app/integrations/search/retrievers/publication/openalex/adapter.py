@@ -1,11 +1,13 @@
 """
 OpenAlexPublicationAdapter: поиск публикаций через OpenAlex API.
 Принимает QueryModel + language (обязательно) + time_slice (опционально),
-возвращает list[InfoQuantum]. Дедуп и мультиязычность — не здесь.
+возвращает кванты и строки биллинга (одна строка на успешный HTTP-запрос, не 5xx).
 """
 import logging
+from decimal import Decimal
 from typing import Any
 
+from app.integrations.search.ports import RetrieverResult, SearchBillingUsageLine
 from app.integrations.search.schemas import QueryModel, TimeSlice
 from app.modules.quanta.schemas import QuantumCreate
 
@@ -21,7 +23,11 @@ from app.integrations.search.retrievers.publication.openalex.mapper import (
 
 logger = logging.getLogger(__name__)
 
-# Тип возвращаемого кванта (совместим с QuantumCreate)
+# Совпадает с billing_tariffs (сид): service_type=search, unit_code=requests
+OPENALEX_SEARCH_SERVICE_TYPE = "search"
+OPENALEX_SEARCH_SERVICE_IMPL = "openalex_fulltext-search"
+OPENALEX_SEARCH_UNIT_CODE = "requests"
+
 InfoQuantum = QuantumCreate
 
 
@@ -44,17 +50,14 @@ class OpenAlexPublicationAdapter:
         limit: int = 50,
         require_abstract: bool = True,
         request_id: str | None = None,
-    ) -> list[InfoQuantum]:
+        step_id: str | None = None,
+        source_query_id: str | None = None,
+    ) -> RetrieverResult:
         """
         Поиск публикаций в OpenAlex по QueryModel.
 
-        - language обязателен; если не передан — ValueError.
-        - theme_id обязателен (передаётся из верхнего слоя поиска через retriever/контекст).
-        - run_id опционален (ID прогона поиска, передаётся из контекста).
-        - time_slice опционален (filter from_publication_date / to_publication_date).
-        - Возвращает только публикации с summary_text (abstract), если require_abstract=True.
-        - MUST/EXCLUDE задаются в запросе к OpenAlex (query_compiler), локально не дублируются.
-        - Дедуп не выполняется.
+        Биллинг: одна строка на успешный ответ API (статус < 500), даже если results пусты.
+        Исключение или 5xx — без строк биллинга, кванты пустые.
         """
         if not language or not isinstance(language, str) or not language.strip():
             raise ValueError("language is required for OpenAlex publication search")
@@ -87,7 +90,29 @@ class OpenAlexPublicationAdapter:
             )
         except Exception as e:
             logger.exception("OpenAlex search failed (request_id=%s): %s", request_id, e)
-            return []
+            return RetrieverResult(items=[], billing_lines=[])
+
+        if data is None:
+            return RetrieverResult(items=[], billing_lines=[])
+
+        billing_extra: dict[str, Any] = {
+            "provider": "openalex",
+            "request_id": request_id,
+        }
+        if step_id is not None:
+            billing_extra["step_id"] = step_id
+        if source_query_id is not None:
+            billing_extra["source_query_id"] = source_query_id
+
+        billing_lines = [
+            SearchBillingUsageLine(
+                service_type=OPENALEX_SEARCH_SERVICE_TYPE,
+                service_impl=OPENALEX_SEARCH_SERVICE_IMPL,
+                quantity=Decimal(1),
+                quantity_unit_code=OPENALEX_SEARCH_UNIT_CODE,
+                extra=billing_extra,
+            )
+        ]
 
         results_raw = data.get("results") or []
         logger.info(
@@ -97,7 +122,7 @@ class OpenAlexPublicationAdapter:
         )
         quanta: list[InfoQuantum] = []
         skipped_not_dict = 0
-        skipped_mapper_none = 0  # маппер вернул None (часто нет abstract при require_abstract=True)
+        skipped_mapper_none = 0
         for work in results_raw:
             if not isinstance(work, dict):
                 skipped_not_dict += 1
@@ -113,7 +138,6 @@ class OpenAlexPublicationAdapter:
             if q is None:
                 skipped_mapper_none += 1
                 continue
-            # MUST/EXCLUDE уже учтены в запросе к OpenAlex (query_compiler), локально не дублируем
             quanta.append(q)
             if len(quanta) >= limit:
                 break
@@ -125,4 +149,4 @@ class OpenAlexPublicationAdapter:
             skipped_not_dict,
             skipped_mapper_none,
         )
-        return quanta
+        return RetrieverResult(items=quanta, billing_lines=billing_lines)

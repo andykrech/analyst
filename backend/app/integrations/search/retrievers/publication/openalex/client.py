@@ -21,15 +21,15 @@ async def openalex_search_works(
     from_publication_date: str | None = None,
     to_publication_date: str | None = None,
     timeout_s: float = 30.0,
-) -> dict[str, Any]:
+) -> dict[str, Any] | None:
     """
     GET https://api.openalex.org/works с параметрами search, filter, pagination.
 
-    - search: boolean-запрос (компилированный).
+    - search: boolean-запрос (скомпилированный).
     - api_key: query-параметр (обязателен с 2026).
     - from_publication_date / to_publication_date: YYYY-MM-DD для filter.
-    Возвращает сырой JSON ответа (meta + results).
-    При ошибке сети/API логирует и пробрасывает исключение.
+    Возвращает JSON (meta + results) или None при HTTP 5xx.
+    Исключения: сеть/таймаут; ошибка разбора JSON при ответе < 500.
     """
     params: dict[str, str | int] = {
         "search": search,
@@ -50,11 +50,18 @@ async def openalex_search_works(
     async with httpx.AsyncClient(timeout=timeout_s) as client:
         try:
             resp = await client.get(OPENALEX_WORKS_URL, params=params)
-            resp.raise_for_status()
-            return resp.json()
-        except httpx.HTTPStatusError as e:
-            logger.warning("OpenAlex API HTTP error: %s %s", e.response.status_code, e.response.text)
-            raise
         except httpx.RequestError as e:
             logger.warning("OpenAlex API request error: %s", e)
+            raise
+        if resp.status_code >= 500:
+            logger.warning(
+                "OpenAlex API server error: %s %s",
+                resp.status_code,
+                (resp.text or "")[:500],
+            )
+            return None
+        try:
+            return resp.json()
+        except Exception as e:
+            logger.warning("OpenAlex API: не удалось разобрать JSON (status=%s): %s", resp.status_code, e)
             raise

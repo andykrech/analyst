@@ -34,7 +34,7 @@ class ThemePrepareLLMMeta(BaseModel):
     provider: str
     model: str | None = None
     usage: dict  # prompt_tokens, completion_tokens, total_tokens, source
-    cost: dict  # currency, total_cost, ...
+    cost: dict = Field(default_factory=dict)  # устар.: стоимость в billing_usage_events
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -214,7 +214,7 @@ class TermsTranslateLLMMeta(BaseModel):
     provider: Optional[str] = None
     model: Optional[str] = None
     usage: dict = Field(..., description="prompt_tokens, completion_tokens, total_tokens, source")
-    cost: dict = Field(..., description="currency, total_cost, ...")
+    cost: dict = Field(default_factory=dict, description="устар.: стоимость в billing_usage_events")
     warnings: list[str] = Field(default_factory=list)
 
 

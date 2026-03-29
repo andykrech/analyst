@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.integrations.llm import LLMService, get_llm_service
+from app.integrations.llm import LLMService, get_llm_service, llm_cost_for_api
 from app.integrations.prompts import PromptService, get_prompt_service
 from app.modules.auth.router import get_current_user
 from app.modules.site.crud import (
@@ -113,6 +113,8 @@ async def recommend_sources_endpoint(
             prompt_service=prompt_service,
             task="sources_recommend",
             generation={"temperature": 0.2, "max_tokens": 2000},
+            billing_session=db,
+            billing_theme_id=tid,
         )
     except Exception as e:  # noqa: BLE001
         logger.exception("sources_recommend LLM call failed: %s", e)
@@ -192,14 +194,13 @@ async def recommend_sources_endpoint(
         provider=response.provider,
         model=response.model,
         usage=response.usage.model_dump(mode="json"),
-        cost=response.cost.model_dump(mode="json"),
+        cost=llm_cost_for_api(response),
         warnings=response.warnings or [],
     )
     logger.info(
-        "sources_recommend ok task=sources_recommend provider=%s usage_source=%s total_cost=%s",
+        "sources_recommend ok task=sources_recommend provider=%s usage_source=%s",
         response.provider,
         response.usage.source,
-        response.cost.total_cost,
     )
     return SourcesRecommendResponse(result=result, llm=llm_meta)
 

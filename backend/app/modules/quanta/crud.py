@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB, insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.quanta.models import Quantum, QuantumEntityKind
+from app.modules.quanta.models import Quantum, QuantumEntityKind, RejectedQuantaCandidate
 
 
 _WS_RE = re.compile(r"\s+")
@@ -303,4 +303,35 @@ async def mark_duplicate(
     await session.flush()
     await session.refresh(row)
     return row
+
+
+async def record_rejected_quanta_candidates(
+    session: AsyncSession,
+    *,
+    theme_id: uuid.UUID,
+    items: list[Any],
+) -> None:
+    """
+    Идемпотентно сохраняет отклонённых кандидатов (уникальность theme_id + entity_kind + key).
+    """
+    from app.integrations.search.utils import _quantum_dedup_key
+    from app.modules.quanta.schemas import QuantumCreate
+
+    if not items:
+        return
+    rows: list[dict[str, Any]] = []
+    for q in items:
+        if not isinstance(q, QuantumCreate):
+            continue
+        dk = _quantum_dedup_key(q)
+        kind_raw = q.entity_kind
+        kind = QuantumEntityKind(kind_raw) if isinstance(kind_raw, str) else kind_raw
+        rows.append({"theme_id": theme_id, "entity_kind": kind, "key": dk})
+    if not rows:
+        return
+    stmt = pg_insert(RejectedQuantaCandidate).values(rows)
+    stmt = stmt.on_conflict_do_nothing(
+        index_elements=["theme_id", "entity_kind", "key"],
+    )
+    await session.execute(stmt)
 

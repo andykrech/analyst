@@ -223,7 +223,11 @@ class EntitiesExtractionService:
                 len(source_text),
             )
             try:
-                result = await self._extractor.extract_for_text(source_text)
+                result = await self._extractor.extract_for_text(
+                    source_text,
+                    billing_session=session,
+                    billing_theme_id=q.theme_id,
+                )
             except Exception as e:
                 logger.warning(
                     "entities_extraction: LLM extraction failed for quantum_id=%s: %s",
@@ -259,7 +263,7 @@ class EntitiesExtractionService:
                     len(person_groups),
                 )
 
-        per_quantum_phenomena = await self._extract_phenomena_for_quanta(quanta)
+        per_quantum_phenomena = await self._extract_phenomena_for_quanta(session, quanta)
         logger.info(
             "entities_extraction: phenomenon extraction done, quanta_with_phenomena=%s",
             len(per_quantum_phenomena),
@@ -481,6 +485,7 @@ class EntitiesExtractionService:
 
     async def _extract_phenomena_for_quanta(
         self,
+        session: AsyncSession,
         quanta: list[Quantum],
     ) -> dict[Any, list[Any]]:
         """Извлечь явления из каждого кванта через LLM. Возвращает quantum_id -> list[PhenomenonCandidate]."""
@@ -491,7 +496,11 @@ class EntitiesExtractionService:
             if not text.strip():
                 continue
             try:
-                result = await self._phenomenon_extractor.extract_for_text(text)
+                result = await self._phenomenon_extractor.extract_for_text(
+                    text,
+                    billing_session=session,
+                    billing_theme_id=q.theme_id,
+                )
             except Exception as e:
                 logger.warning(
                     "entities_extraction: phenomenon extraction failed for quantum_id=%s: %s",

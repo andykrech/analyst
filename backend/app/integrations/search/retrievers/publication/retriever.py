@@ -1,13 +1,12 @@
 """
 PublicationRetriever: оркестратор поиска публикаций через OpenAlex (и в будущем другие адаптеры).
-Реализует RetrieverPort — получает QueryStep и RetrieverContext, возвращает list[QuantumCreate].
+Реализует RetrieverPort — возвращает RetrieverResult (кванты + строки биллинга).
 """
 import logging
 from typing import Any
 
-from app.integrations.search.ports import RetrieverContext, RetrieverPort
+from app.integrations.search.ports import RetrieverContext, RetrieverPort, RetrieverResult
 from app.integrations.search.schemas import QueryStep
-from app.modules.quanta.schemas import QuantumCreate
 
 from app.integrations.search.retrievers.publication.openalex.adapter import (
     OpenAlexPublicationAdapter,
@@ -26,10 +25,10 @@ class PublicationRetriever:
     def name(self) -> str:
         return "openalex"
 
-    async def retrieve(self, step: QueryStep, ctx: RetrieverContext) -> list[QuantumCreate]:
+    async def retrieve(self, step: QueryStep, ctx: RetrieverContext) -> RetrieverResult:
         if ctx.theme_id is None:
             logger.warning("PublicationRetriever: theme_id missing in context, skipping")
-            return []
+            return RetrieverResult(items=[], billing_lines=[])
 
         theme_id = str(ctx.theme_id)
         run_id = ctx.run_id
@@ -47,7 +46,7 @@ class PublicationRetriever:
             api_key=settings.OPENALEX_API_KEY,
             timeout_s=30.0,
         )
-        items = await adapter.search_publications(
+        result = await adapter.search_publications(
             step.query_model,
             terms_by_id,
             language=language,
@@ -57,10 +56,13 @@ class PublicationRetriever:
             limit=step.max_results,
             require_abstract=True,
             request_id=ctx.request_id,
+            step_id=str(step.step_id),
+            source_query_id=str(step.source_query_id),
         )
         logger.info(
-            "search/retriever: шаг step_id=%s, вернулось квантов=%s",
+            "search/retriever: шаг step_id=%s, вернулось квантов=%s, строк биллинга=%s",
             step.step_id,
-            len(items),
+            len(result.items),
+            len(result.billing_lines),
         )
-        return items
+        return result

@@ -229,17 +229,24 @@ async def translate_quanta_fields(
     llm_service: LLMService,
     prompt_service: PromptService,
     limit: int = 0,
+    *,
+    billing_session: AsyncSession | None = None,
+    billing_theme_id: uuid.UUID | None = None,
+    titles_only: bool = False,
 ) -> list[dict[str, Any]]:
     """
-    Перевести поля квантов (title, summary_text, key_points) на основной язык темы.
+    Перевести поля квантов на основной язык темы.
 
     Основной язык темы — theme.languages[0]; передаётся в primary_language.
     В пакет попадают только кванты, у которых язык не совпадает с основным.
     limit: 0 = все, >0 = только первые N квантов для перевода (для отладки).
     Батчи по BATCH_SIZE квантов, один вызов LLM на батч.
 
+    При titles_only=True в запрос к LLM уходят только заголовки (остальные поля пустые);
+    в ответе сохраняются только title_translated, summary_text_translated и key_points_translated — None.
+
     Возвращает список словарей для применения вызывающим (вариант A):
-    [{"id": str, "title_translated": str, "summary_text_translated": str, "key_points_translated": list[str]}, ...]
+    [{"id": str, "title_translated": str, "summary_text_translated": str | None, "key_points_translated": list[str] | None}, ...]
     """
     logger = logging.getLogger(__name__)
     to_translate = [q for q in quanta_list if _needs_translation(q, primary_language)]
@@ -251,15 +258,22 @@ async def translate_quanta_fields(
     result: list[dict[str, Any]] = []
     for i in range(0, len(to_translate), BATCH_SIZE):
         batch = to_translate[i : i + BATCH_SIZE]
-        items = [
-            {
-                "id": str(q.id),
-                "title": q.title or "",
-                "summary_text": q.summary_text or "",
-                "key_points": list(q.key_points) if q.key_points else [],
-            }
-            for q in batch
-        ]
+        items = []
+        for q in batch:
+            if titles_only:
+                items.append({
+                    "id": str(q.id),
+                    "title": q.title or "",
+                    "summary_text": "",
+                    "key_points": [],
+                })
+            else:
+                items.append({
+                    "id": str(q.id),
+                    "title": q.title or "",
+                    "summary_text": q.summary_text or "",
+                    "key_points": list(q.key_points) if q.key_points else [],
+                })
         items_json = json.dumps(items, ensure_ascii=False)
 
         try:
@@ -268,6 +282,9 @@ async def translate_quanta_fields(
                 {"target_language": primary_language, "items": items_json},
                 prompt_service,
                 generation={"max_tokens": TRANSLATE_MAX_TOKENS},
+                task="quanta_translate_fields",
+                billing_session=billing_session,
+                billing_theme_id=billing_theme_id,
             )
         except Exception as e:
             logger.warning("translate_quanta_fields: LLM batch failed (batch size=%s): %s", len(batch), e)
@@ -309,12 +326,16 @@ async def translate_quanta_fields(
             tid = t.get("id")
             if tid is None:
                 continue
-            result.append({
+            row = {
                 "id": str(tid),
                 "title_translated": t.get("title_translated") if isinstance(t.get("title_translated"), str) else "",
                 "summary_text_translated": t.get("summary_text_translated") if isinstance(t.get("summary_text_translated"), str) else "",
                 "key_points_translated": t.get("key_points_translated") if isinstance(t.get("key_points_translated"), list) else [],
-            })
+            }
+            if titles_only:
+                row["summary_text_translated"] = None
+                row["key_points_translated"] = None
+            result.append(row)
 
     return result
 
@@ -325,11 +346,17 @@ async def translate_quanta_create_items(
     llm_service: LLMService,
     prompt_service: PromptService,
     limit: int = 0,
+    *,
+    billing_session: AsyncSession | None = None,
+    billing_theme_id: uuid.UUID | None = None,
+    titles_only: bool = False,
 ) -> dict[int, dict[str, Any]]:
     """
     Перевести поля квантов (до сохранения в БД).
     Использует индекс в items как временный id для сопоставления с ответом LLM.
     limit: 0 = все, >0 = только первые N квантов, требующих перевода.
+    titles_only: см. translate_quanta_fields.
+
     Возвращает словарь индекс -> {title_translated, summary_text_translated, key_points_translated}.
     """
     if not items:
@@ -341,6 +368,9 @@ async def translate_quanta_create_items(
         llm_service,
         prompt_service,
         limit=limit,
+        billing_session=billing_session,
+        billing_theme_id=billing_theme_id,
+        titles_only=titles_only,
     )
     by_index: dict[int, dict[str, Any]] = {}
     for t in translations:
@@ -369,6 +399,9 @@ async def score_quanta_relevance(
     model_names: list[str],
     llm_service: LLMService,
     prompt_service: PromptService,
+    *,
+    billing_session: AsyncSession | None = None,
+    billing_theme_id: uuid.UUID | None = None,
 ) -> list[dict[str, Any]]:
     """
     Оценка релевантности квантов теме от нескольких моделей ИИ.
@@ -403,6 +436,9 @@ async def score_quanta_relevance(
                 prompt_service,
                 provider=model_key,
                 generation={"max_tokens": RELEVANCE_SCORE_MAX_TOKENS},
+                task="quanta_relevance_score",
+                billing_session=billing_session,
+                billing_theme_id=billing_theme_id,
             )
         except Exception as e:
             logger.warning(

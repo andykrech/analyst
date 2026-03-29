@@ -147,9 +147,18 @@ async def ensure_theme_relevance_embedding(
     if existing and existing.text_hash == text_hash:
         return
 
-    # Вызвать эмбеддинг
+    # Вызвать эмбеддинг (биллинг — при наличии BillingService на EmbeddingService)
     try:
-        embed_result = await embedding_service.embed(description)
+        embed_result = await embedding_service.embed(
+            description,
+            billing_session=session,
+            billing_theme_id=theme_id,
+            billing_task_type="theme_relevance_embedding",
+            billing_extra={
+                "embedding_kind": "relevance",
+                "object_type": "theme",
+            },
+        )
     except Exception as e:
         logger.warning(
             "embedding: не удалось построить вектор релевантности для темы %s: %s",

@@ -14,7 +14,11 @@ import logging
 import uuid as uuid_module
 from typing import Any
 
-from app.integrations.search.ports import RetrieverContext, RetrieverPort
+from app.integrations.search.ports import (
+    RetrieverContext,
+    RetrieverPort,
+    SearchBillingUsageLine,
+)
 from app.integrations.search.schemas import (
     QuantumCollectResult,
     QueryStep,
@@ -22,7 +26,8 @@ from app.integrations.search.schemas import (
     StepResult,
     TimeSlice,
 )
-from app.integrations.search.utils import dedup_quanta
+from app.integrations.search.utils import _quantum_dedup_key, dedup_quanta
+from app.modules.quanta.crud import record_rejected_quanta_candidates
 from app.modules.quanta.schemas import QuantumCreate
 
 
@@ -46,8 +51,27 @@ def _apply_time_slice_quanta(
 
 def _quantum_dedup_key_for_seen(q: QuantumCreate) -> tuple[str, str]:
     """Ключ для seen: (theme_id, dedup_key)."""
-    from app.integrations.search.utils import _quantum_dedup_key
     return (q.theme_id, _quantum_dedup_key(q))
+
+
+def _drop_already_stored_or_rejected_quanta(
+    items: list[QuantumCreate],
+    ctx: RetrieverContext,
+) -> list[QuantumCreate]:
+    """После dedup: убрать уже сохранённые кванты и ранее отклонённых кандидатов."""
+    existing = ctx.existing_theme_dedup_keys
+    rejected = ctx.rejected_quanta_candidate_keys
+    if not existing and not rejected:
+        return items
+    out: list[QuantumCreate] = []
+    for q in items:
+        dk = _quantum_dedup_key(q)
+        if dk in existing:
+            continue
+        if (str(q.entity_kind), dk) in rejected:
+            continue
+        out.append(q)
+    return out
 
 
 def _quantum_description_for_embedding(q: QuantumCreate) -> str:
@@ -72,6 +96,46 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
     if norm_a <= 0 or norm_b <= 0:
         return 0.0
     return dot / (norm_a * norm_b)
+
+
+_SEARCH_BILLING_TASK_TYPE = "search_collect"
+
+
+async def _flush_search_billing(
+    *,
+    ctx: RetrieverContext,
+    billing_lines: list[SearchBillingUsageLine],
+    step: QueryStep,
+) -> None:
+    """Пишет строки биллинга поиска; при жёстком биллинге пробрасывает BillingConfigError."""
+    if not billing_lines:
+        return
+    bs = ctx.billing_service
+    session = ctx.billing_session
+    theme_id = ctx.billing_theme_id
+    if bs is None or session is None or theme_id is None:
+        return
+    base_extra: dict[str, Any] = {
+        "retriever": step.retriever,
+        "step_id": str(step.step_id),
+        "source_query_id": str(step.source_query_id),
+    }
+    if ctx.request_id:
+        base_extra["request_id"] = ctx.request_id
+    if ctx.run_id is not None:
+        base_extra["run_id"] = str(ctx.run_id)
+    for line in billing_lines:
+        merged = {**base_extra, **(line.extra or {})}
+        await bs.record_usage(
+            session,
+            theme_id=theme_id,
+            task_type=_SEARCH_BILLING_TASK_TYPE,
+            service_type=line.service_type,
+            service_impl=line.service_impl,
+            quantity=line.quantity,
+            quantity_unit_code=line.quantity_unit_code,
+            extra=merged,
+        )
 
 
 class SearchExecutor:
@@ -152,7 +216,7 @@ class SearchExecutor:
                 continue
 
             try:
-                raw_items = await retriever.retrieve(step, ctx)
+                r_result = await retriever.retrieve(step, ctx)
             except Exception as e:
                 step_results.append(
                     StepResult(
@@ -168,6 +232,13 @@ class SearchExecutor:
                 )
                 continue
 
+            await _flush_search_billing(
+                ctx=ctx,
+                billing_lines=r_result.billing_lines,
+                step=step,
+            )
+
+            raw_items = r_result.items
             filtered = list(raw_items)
             if time_slice is not None:
                 filtered = _apply_time_slice_quanta(filtered, time_slice)
@@ -218,6 +289,7 @@ class SearchExecutor:
                 break
 
         all_items = dedup_quanta(all_items)
+        all_items = _drop_already_stored_or_rejected_quanta(all_items, ctx)
         total_found = len(all_items)
         warnings: list[str] = []
         items_embedding_data: list[dict] | None = None
@@ -249,7 +321,19 @@ class SearchExecutor:
                 vector: list[float] | None = None
                 rank_score = 0.0
                 try:
-                    result = await self._embedding_service.embed(desc)
+                    embed_kw: dict[str, Any] = {}
+                    if (
+                        ctx.billing_service is not None
+                        and ctx.billing_session is not None
+                        and ctx.theme_id is not None
+                    ):
+                        embed_kw = {
+                            "billing_session": ctx.billing_session,
+                            "billing_theme_id": ctx.theme_id,
+                            "billing_task_type": "search_quantum_embedding",
+                            "billing_extra": {"context": "search_executor"},
+                        }
+                    result = await self._embedding_service.embed(desc, **embed_kw)
                     vec = result.get("vector")
                     if vec and isinstance(vec, list):
                         vector = vec
@@ -265,6 +349,17 @@ class SearchExecutor:
 
             for q, _v, _h, score, _cid in per_item:
                 q.rank_score = score
+            embedding_rejected = [t[0] for t in per_item if t[3] < embedding_threshold]
+            if (
+                embedding_rejected
+                and ctx.billing_session is not None
+                and ctx.billing_theme_id is not None
+            ):
+                await record_rejected_quanta_candidates(
+                    ctx.billing_session,
+                    theme_id=ctx.billing_theme_id,
+                    items=embedding_rejected,
+                )
             filtered_per_item = [t for t in per_item if t[3] >= embedding_threshold]
             final_per_item = filtered_per_item[:global_target_links]
             final_items = [t[0] for t in final_per_item]

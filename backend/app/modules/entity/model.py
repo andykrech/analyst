@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import List, Optional
 
-from sqlalchemy import Float, ForeignKey, Index, Integer, Text, UniqueConstraint, text
+from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -334,4 +334,16 @@ class ThemeStats(Base):
         nullable=False,
         server_default=text("0"),
         comment="Максимальная частота атома по кластерам в теме (для расчёта global_score атомов).",
+    )
+    billing_timezone: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        server_default=text("'Asia/Krasnoyarsk'"),
+        comment="IANA timezone для границы календарного дня биллинга (по умолчанию UTC+7, на 4 ч вперёд от Москвы).",
+    )
+    billing_display_currency: Mapped[str] = mapped_column(
+        String(3),
+        nullable=False,
+        server_default=text("'RUB'"),
+        comment="Валюта отображения расходов по теме (ISO 4217).",
     )
