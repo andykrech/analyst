@@ -65,7 +65,7 @@ class RetrieverPort(Protocol):
 
     @property
     def name(self) -> str:
-        """Имя retriever'а (например 'yandex', 'openalex')."""
+        """Имя retriever'а (например 'publication_retriever', 'yandex')."""
         ...
 
     async def retrieve(self, step: QueryStep, ctx: RetrieverContext) -> RetrieverResult:

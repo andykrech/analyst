@@ -114,8 +114,10 @@ class PublicationSourceExtras(BaseModel):
     """Дополнительные данные от источника (extra='allow')."""
 
     model_config = {"extra": "allow"}
-
-    openalex: dict[str, Any] | None = None
+    # Универсальные идентификаторы/поля разных источников.
+    # Пример:
+    # {"source_ids": {"openalex": {"id": ...}, "semantic_scholar": {"paperId": ...}}}
+    source_ids: dict[str, Any] | None = None
 
 
 class PublicationAttrs(BaseModel):

@@ -76,7 +76,8 @@ class SearchPlanner:
 
         Для каждой записи и каждого retriever'а создаётся шаг для каждого языка из languages.
         Если languages пустой/None — один шаг без языка (retriever использует ctx.language).
-        max_results: из settings.SEARCH_MAX_RESULTS_PER_RETRIEVER (для OpenAlex по умолчанию 50; для теста мог быть лимит 2 в .env).
+        max_results: из settings.SEARCH_MAX_RESULTS_PER_RETRIEVER (шаг publication_retriever: SEARCH_MAX_RESULTS_PUBLICATION).
+        При enabled_retrievers IS NULL используется settings.SEARCH_DEFAULT_RETRIEVERS (по умолчанию ["publication_retriever"]).
         """
         result = await session.execute(
             select(ThemeSearchQuery)

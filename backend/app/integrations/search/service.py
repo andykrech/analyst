@@ -66,7 +66,7 @@ def _theme_language(theme: Theme) -> str:
 class SearchService:
     """
     Единый сервис сбора квантов: planner + executor + registry retriever'ов.
-    По умолчанию используется ретривер публикаций (OpenAlex).
+    По умолчанию используется оркестратор публикаций (PublicationRetriever).
     Настройки (в т.ч. для эмбеддинга) берутся из Settings; EmbeddingService создаётся внутри.
     Перед поиском по теме создаётся/обновляется вектор релевантности темы (embedding_kind=relevance).
     """
@@ -75,8 +75,9 @@ class SearchService:
         self._settings = settings
         self._billing_service = billing_service
         self._embedding_service = EmbeddingService(settings, billing_service=self._billing_service)
+        _publication_retriever = PublicationRetriever()
         self._registry: dict[str, "RetrieverPort"] = {
-            "openalex": PublicationRetriever(),
+            "publication_retriever": _publication_retriever,
         }
         self._planner = SearchPlanner(settings)
         self._executor = SearchExecutor(self._registry, settings, self._embedding_service)

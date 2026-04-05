@@ -156,6 +156,7 @@ def map_openalex_work_to_quantum(
     theme_id: str,
     run_id: str | None = None,
     require_abstract: bool = True,
+    retriever_name: str = "publication_retriever",
 ) -> QuantumCreate | None:
     """
     Преобразует один Work из OpenAlex в QuantumCreate.
@@ -210,9 +211,8 @@ def map_openalex_work_to_quantum(
         else None
     )
     classification = _build_classification(work_json)
-    source_extras = PublicationSourceExtras(
-        openalex={"id": oa_id} if oa_id else None
-    )
+    source_ids: dict[str, Any] | None = {"openalex": {"id": oa_id}} if oa_id else None
+    source_extras = PublicationSourceExtras(source_ids=source_ids)
     attrs_obj = PublicationAttrs(
         work_type=work_json.get("type"),
         venue=venue,
@@ -243,7 +243,7 @@ def map_openalex_work_to_quantum(
         retriever_query=compiled_query_string,
         rank_score=float(work_json["relevance_score"]) if isinstance(work_json.get("relevance_score"), (int, float)) else None,
         source_system="openalex",
-        retriever_name="openalex",
+        retriever_name=retriever_name,
         retriever_version=None,
         attrs={"publication": attrs_dict},
     )

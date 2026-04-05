@@ -72,6 +72,10 @@ class ProviderPricing:
     unit: str = "per_1m"
 
 
+# Лимит результатов на один шаг ретривера публикаций (PublicationRetriever).
+_SEARCH_MAX_RESULTS_PUBLICATION = _int("SEARCH_MAX_RESULTS_PUBLICATION", 50)
+
+
 @dataclass
 class ProviderConfig:
     """Конфигурация LLM-провайдера."""
@@ -122,10 +126,11 @@ class Settings:
     DEEPSEEK_PRICE_COMPLETION_PER_1M: Decimal = _decimal("DEEPSEEK_PRICE_COMPLETION_PER_1M", 0)
     DEEPSEEK_CURRENCY: str = _str("DEEPSEEK_CURRENCY", "USD")
 
-    # Search: retriever'ы по умолчанию, лимиты (сейчас — OpenAlex публикации).
-    # Лимит OpenAlex из env (для теста мог быть SEARCH_MAX_RESULTS_OPENALEX=2 — уберите из .env).
-    SEARCH_DEFAULT_RETRIEVERS: list[str] = ["openalex"]
-    SEARCH_MAX_RESULTS_PER_RETRIEVER: dict[str, int] = {"openalex": _int("SEARCH_MAX_RESULTS_OPENALEX", 50)}
+    # Search: retriever'ы по умолчанию, лимиты (шаг «публикации» = PublicationRetriever).
+    SEARCH_DEFAULT_RETRIEVERS: list[str] = ["publication_retriever"]
+    SEARCH_MAX_RESULTS_PER_RETRIEVER: dict[str, int] = {
+        "publication_retriever": _SEARCH_MAX_RESULTS_PUBLICATION,
+    }
     SEARCH_DEFAULT_TIME_WINDOW_DAYS: int = _int("SEARCH_DEFAULT_TIME_WINDOW_DAYS", 7)
     SEARCH_DEFAULT_TARGET_LINKS: int = _int("SEARCH_DEFAULT_TARGET_LINKS", 50)
 
@@ -142,6 +147,11 @@ class Settings:
 
     # OpenAlex API (публикации)
     OPENALEX_API_KEY: str = _str("OPENALEX_API_KEY", "")
+
+    # NCBI E-utilities (PubMed): обязательны tool и email; api_key повышает лимит запросов/с
+    NCBI_TOOL: str = _str("NCBI_TOOL", "analyst")
+    NCBI_EMAIL: str = _str("NCBI_EMAIL", "")
+    NCBI_API_KEY: str = _str("NCBI_API_KEY", "")
 
     # Yandex Search API v2 (gRPC)
     YANDEX_API_KEY: str = _str("YANDEX_API_KEY", "changeme")

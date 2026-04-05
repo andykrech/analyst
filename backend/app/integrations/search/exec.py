@@ -64,13 +64,25 @@ def _drop_already_stored_or_rejected_quanta(
     if not existing and not rejected:
         return items
     out: list[QuantumCreate] = []
+    skipped_existing = 0
+    skipped_rejected = 0
     for q in items:
         dk = _quantum_dedup_key(q)
         if dk in existing:
+            skipped_existing += 1
             continue
         if (str(q.entity_kind), dk) in rejected:
+            skipped_rejected += 1
             continue
         out.append(q)
+    logger = logging.getLogger(__name__)
+    if skipped_existing or skipped_rejected:
+        logger.info(
+            "search/executor: filtered candidates after dedup: skipped_existing=%s, skipped_rejected=%s, kept=%s",
+            skipped_existing,
+            skipped_rejected,
+            len(out),
+        )
     return out
 
 

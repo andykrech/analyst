@@ -49,6 +49,7 @@ class OpenAlexPublicationAdapter:
         time_slice: TimeSlice | None = None,
         limit: int = 50,
         require_abstract: bool = True,
+        retriever_name: str = "publication_retriever",
         request_id: str | None = None,
         step_id: str | None = None,
         source_query_id: str | None = None,
@@ -65,6 +66,12 @@ class OpenAlexPublicationAdapter:
             raise ValueError("theme_id is required for OpenAlex publication search")
 
         compiled = compile_openalex_query(query_model, terms_by_id, language)
+        logger.info(
+            "search/adapter: provider=%s compiled_query=%s (request_id=%s)",
+            "openalex",
+            compiled,
+            request_id,
+        )
 
         from_date: str | None = None
         to_date: str | None = None
@@ -73,7 +80,8 @@ class OpenAlexPublicationAdapter:
             to_date = time_slice.published_to.strftime("%Y-%m-%d")
 
         logger.info(
-            "search/adapter: OpenAlex запрос, limit=%s, per_page=%s (request_id=%s)",
+            "search/adapter: provider=%s request limit=%s, per_page=%s (request_id=%s)",
+            "openalex",
             limit,
             min(limit, 200),
             request_id,
@@ -116,7 +124,8 @@ class OpenAlexPublicationAdapter:
 
         results_raw = data.get("results") or []
         logger.info(
-            "search/adapter: OpenAlex ответ, пришло результатов из API=%s (request_id=%s)",
+            "search/adapter: provider=%s response api_results=%s (request_id=%s)",
+            "openalex",
             len(results_raw),
             request_id,
         )
@@ -134,6 +143,7 @@ class OpenAlexPublicationAdapter:
                 theme_id=theme_id,
                 run_id=run_id,
                 require_abstract=require_abstract,
+                retriever_name=retriever_name,
             )
             if q is None:
                 skipped_mapper_none += 1
@@ -143,7 +153,8 @@ class OpenAlexPublicationAdapter:
                 break
 
         logger.info(
-            "search/adapter: OpenAlex возврат квантов после фильтров=%s (request_id=%s); отсеяно: not_dict=%s, mapper_none=%s",
+            "search/adapter: provider=%s mapped_quanta=%s (request_id=%s); skipped: not_dict=%s, mapper_none=%s",
+            "openalex",
             len(quanta),
             request_id,
             skipped_not_dict,

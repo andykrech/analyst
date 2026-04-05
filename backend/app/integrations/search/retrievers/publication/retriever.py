@@ -1,5 +1,7 @@
 """
-PublicationRetriever: оркестратор поиска публикаций через OpenAlex (и в будущем другие адаптеры).
+PublicationRetriever: оркестратор поиска публикаций через несколько адаптеров
+(OpenAlex, Semantic Scholar, arXiv, PubMed).
+
 Реализует RetrieverPort — возвращает RetrieverResult (кванты + строки биллинга).
 """
 import logging
@@ -11,19 +13,28 @@ from app.integrations.search.schemas import QueryStep
 from app.integrations.search.retrievers.publication.openalex.adapter import (
     OpenAlexPublicationAdapter,
 )
+from app.integrations.search.retrievers.publication.semanticscholar.adapter import (
+    SemanticScholarPublicationAdapter,
+)
+from app.integrations.search.retrievers.publication.arxiv.adapter import (
+    ArxivPublicationAdapter,
+)
+from app.integrations.search.retrievers.publication.pubmed.adapter import (
+    PubMedPublicationAdapter,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class PublicationRetriever:
     """
-    Ретривер публикаций: вызывает OpenAlex-адаптер.
+    Ретривер публикаций: OpenAlex, Semantic Scholar, arXiv, PubMed (по порядку).
     Требует theme_id в контексте; language и terms_by_id задаются в ctx (из темы).
     """
 
     @property
     def name(self) -> str:
-        return "openalex"
+        return "publication_retriever"
 
     async def retrieve(self, step: QueryStep, ctx: RetrieverContext) -> RetrieverResult:
         if ctx.theme_id is None:
@@ -42,11 +53,30 @@ class PublicationRetriever:
             step.max_results,
         )
         settings = ctx.settings
-        adapter = OpenAlexPublicationAdapter(
+        retriever_name = self.name
+
+        oa_adapter = OpenAlexPublicationAdapter(
             api_key=settings.OPENALEX_API_KEY,
             timeout_s=30.0,
         )
-        result = await adapter.search_publications(
+        s2_adapter = SemanticScholarPublicationAdapter(
+            timeout_s=30.0,
+            retries=10,
+            retry_delay_s=2.0,
+        )
+        arxiv_adapter = ArxivPublicationAdapter(
+            timeout_s=60.0,
+            retries=5,
+        )
+        pubmed_adapter = PubMedPublicationAdapter(
+            tool=settings.NCBI_TOOL,
+            email=settings.NCBI_EMAIL,
+            api_key=settings.NCBI_API_KEY,
+            timeout_esearch_s=60.0,
+            timeout_efetch_s=120.0,
+        )
+
+        oa_result = await oa_adapter.search_publications(
             step.query_model,
             terms_by_id,
             language=language,
@@ -55,9 +85,59 @@ class PublicationRetriever:
             time_slice=time_slice,
             limit=step.max_results,
             require_abstract=True,
+            retriever_name=retriever_name,
             request_id=ctx.request_id,
             step_id=str(step.step_id),
             source_query_id=str(step.source_query_id),
+        )
+
+        s2_result = await s2_adapter.search_publications(
+            step.query_model,
+            terms_by_id,
+            language=language,
+            theme_id=theme_id,
+            run_id=run_id,
+            time_slice=time_slice,
+            limit=step.max_results,
+            require_abstract=True,
+            retriever_name=retriever_name,
+            request_id=ctx.request_id,
+        )
+
+        arxiv_result = await arxiv_adapter.search_publications(
+            step.query_model,
+            terms_by_id,
+            language=language,
+            theme_id=theme_id,
+            run_id=run_id,
+            time_slice=time_slice,
+            limit=step.max_results,
+            require_abstract=True,
+            retriever_name=retriever_name,
+            request_id=ctx.request_id,
+        )
+
+        pubmed_result = await pubmed_adapter.search_publications(
+            step.query_model,
+            terms_by_id,
+            language=language,
+            theme_id=theme_id,
+            run_id=run_id,
+            time_slice=time_slice,
+            limit=step.max_results,
+            require_abstract=True,
+            retriever_name=retriever_name,
+            request_id=ctx.request_id,
+        )
+
+        result = RetrieverResult(
+            items=[
+                *(oa_result.items or []),
+                *(s2_result.items or []),
+                *(arxiv_result.items or []),
+                *(pubmed_result.items or []),
+            ],
+            billing_lines=[*(oa_result.billing_lines or [])],
         )
         logger.info(
             "search/retriever: шаг step_id=%s, вернулось квантов=%s, строк биллинга=%s",

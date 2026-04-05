@@ -280,7 +280,7 @@ class QueryStep(BaseModel):
 
     kind: Literal["query"] = "query"
     step_id: str
-    retriever: str  # имя retriever'а (например "openalex")
+    retriever: str  # имя retriever'а (например "publication_retriever", "yandex")
     source_query_id: UUID  # id из theme_search_queries
     order_index: int
     query_model: QueryModel
